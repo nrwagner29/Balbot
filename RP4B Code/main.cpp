@@ -49,7 +49,33 @@ int fd;
 float voltage1;
 float voltage2;
 
-void MPU6050_Init() //Write offsets here too
+/*Balbot Parameters*/
+float Ixb = 0.0003478;
+float Iyb = 0.0004134;
+float Izb = 0.0004908;
+float Ixwl = 0.00017645;
+float Iywl = 0.00017645;
+float Izwl = 0.000352;
+float Ixwr = 0.00017645;
+float Iywr = 0.00017645;
+float Izwr = 0.000352;
+float bmass = .436;
+float wmass = .110;
+float gr = 9.81;
+
+/*Balbot states*/
+float q1 = 0;
+float q2 = 0;
+float q3 = 0;
+float q4 = 0;
+float q5 = 0;
+float dq1 = 0;
+float dq2 = 0;
+float dq3 = 0;
+float dq4 = 0;
+float dq5 = 0;
+
+void MPU6050_Init() // Write offsets here too
 {
 
     wiringPiI2CWriteReg8(fd, SMPLRT_DIV, 0x07); /* Write to sample rate register */
@@ -187,11 +213,53 @@ int main()
         Gy = Gyro_y / 131;
         Gz = Gyro_z / 131;
 
-        voltage1 = Ay * 3;
-        voltage2 = Az * 3;
-        leftwheel.drive_spin_volts_.set(com, voltage1);
-        rightwheel.drive_spin_volts_.set(com, voltage2);
-        printf("Gx=%.3f°/s Gy=%.3f°/s Gz=%.3f°/s Ax=%.3fg Ay=%.3fg Az=%.3fg LMotor Temperature: %.3f LMotor Command (v): %.3f RMotor Temperature: %.3f RMotor Command (v): %.3f \r", Gx, Gy, Gz, Ax, Ay, Az, temperatureleft, voltage1, temperatureright, voltage2);
+        /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
+        float leftang = leftwheel.obs_angle_.get(com); //q4
+        float rightang = rightwheel.obs_angle_.get(com); //q5
+        float leftvelo = leftewheel.obs_velocity_.get(com); //dq4
+        float rightvelo = rightwheel.obs_velocity_.get(com); //dq5
+        /*Controller code Here*/
+
+        /*From MATLAB ccode*/
+        float t2 = (q3); // fine as long as q3 is real only
+        float t4 = wmass * 2.0;
+        float t8 = wmass / 1.0E+2;
+        float t9 = q2 * 1.405512958801151E+2;
+        float t10 = q3 * 1.416399323695648E+2;
+        float t11 = q4 * 2.106736049221242;
+        float t12 = q5 * 2.140339324824921;
+        float t13 = dq3 * 2.395140112673594E+1;
+        float t14 = dq2 * 2.387142724903835E+1;
+        float t15 = dq4 * 1.779729334865774;
+        float t16 = dq5 * 1.800856349596192;
+        float t3 = cos(t2);
+        float t5 = t2 * 2.0;
+        float t7 = bmass + t4;
+        float t17 = t9 + t11 + t14 + t15;
+        float t18 = t10 + t12 + t13 + t16;
+        float t6 = cos(t5);
+        float Tauleft = (t17 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass / 2.0E+2 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + (bmass * t6) / 2.0E+2 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t17 * (Iywl + t8);
+        float Tauright = t18 * (Ixwl + Iyb + Iywr + bmass / 1.0E+2 + wmass / 5.0E+1) - t18 * (Iywr + t8) + gr * l * t7 * sin(q3);
+        /*torque output of controller here*/
+        /*End MATLAB ccode*/
+
+        /*torque to current to voltage command*/
+        /*torque to current*/
+        float kt = 0.053;                // torque constant
+        float leftcurr = Tauleft / kt;   // amps
+        float rightcurr = Tauright / kt; // amps
+
+        /*current to voltage*/
+        float R = 4.7;                                     // omhs
+        float leftemf = leftwheel.motor_emf_calc_.get(com);   // volts (need to get from motor)
+        float rightemf = rightwheel.motor_emf_calc_.get(com); // volts
+        printf('left EMF: %.3f  right EMF: %.3f ', leftemf, rightemf);
+        float leftvolt = leftemf + R * leftcurr;
+        float rightvolt = rightemf + R * rightcurr;
+
+        leftwheel.drive_spin_volts_.set(com, leftvolt);
+        rightwheel.drive_spin_volts_.set(com, rightvolt);
+        printf("Gx=%.3f°/s Gy=%.3f°/s Gz=%.3f°/s Ax=%.3fg Ay=%.3fg Az=%.3fg  LMotor Command (v): %.3f RMotor Command (v): %.3f \r", Gx, Gy, Gz, Ax, Ay, Az, voltage1, voltage2);
         ms_delay(10);
     }
 
