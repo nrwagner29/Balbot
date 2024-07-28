@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include <RTCZero.h>
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
@@ -101,6 +102,8 @@ PowerMonitorClient pwrl(2);
 MultiTurnAngleControlClient angr(0);
 MultiTurnAngleControlClient angl(2);
 
+/* Create an rtc object */
+RTCZero rtc;
 
 int i = 0;
 
@@ -122,7 +125,7 @@ float bmass = .436;
 float wmass = .110;
 //consts
 float gr = 9.81;
-float l = .1;
+float l = .13;
 //code params
 static float velocityr = 0;
 static float velocityl = 0;
@@ -156,6 +159,16 @@ float ax = 0;
 float ay = 0;
 float FREQ = 200;
 float zero = 0;
+/* Change these values to set the current initial time */
+const byte seconds = 0;
+const byte minutes = 47;
+const byte hours = 05;
+
+/* Change these values to set the current initial date */
+const byte day = 27;
+const byte month = 07;
+const byte year = 24;
+
 
 void setup() {
   // Initialize serial and wait for port to open:
@@ -254,10 +267,11 @@ void setup() {
   ser.set(angl.obs_angular_displacement_, zero);
   ser.set(angr.obs_angular_displacement_, zero);
 
-
   ser.set(angl.ctrl_volts_, zero);
   ser.set(angr.ctrl_volts_, zero);
-
+  /*Zero and set time on RTC*/
+  rtc.setTime(hours, minutes, seconds);
+  rtc.setDate(day, month, year);
 
   delay(1000);
 }
@@ -301,12 +315,12 @@ void loop() {
     i2cmpu.dmpGetGravity(&gravity, &q);
     i2cmpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     i2cmpu.dmpGetGyro(&gyro, fifoBuffer);
-    Serial.print(" | ypr ");
-    Serial.print(ypr[0] * 180 / M_PI);
-    Serial.print(" ");
-    Serial.print(ypr[1] * 180 / M_PI);
-    Serial.print(" ");
-    Serial.print(ypr[2] * 180 / M_PI);
+    // Serial.print(" | ypr ");
+    // Serial.print(ypr[0] * 180 / M_PI);
+    // Serial.print(" ");
+    // Serial.print(ypr[1] * 180 / M_PI);
+    // Serial.print(" ");
+    // Serial.print(ypr[2] * 180 / M_PI);
     // Serial.print(" | Gyro ");
     // Serial.print(gyro.x);
     // Serial.print(" ");
@@ -361,21 +375,21 @@ void loop() {
 #endif
   }
 
-  if (ser.get(pwrr.volts_, voltager)) {
-    Serial.print(" | Motor R Supp Volt: ");
-    Serial.print(voltager);
-  }
-  if (ser.get(pwrl.volts_, voltagel)) {
-    Serial.print(" | Motor L Supp Volt: ");
-    Serial.print(voltagel);
-  }
+  // if (ser.get(pwrr.volts_, voltager)) {
+  //   Serial.print(" | Motor R Supp Volt: ");
+  //   Serial.print(voltager);
+  // }
+  // if (ser.get(pwrl.volts_, voltagel)) {
+  //   Serial.print(" | Motor L Supp Volt: ");
+  //   Serial.print(voltagel);
+  // }
   // Get the velocity. If a response was received...
 
   if (ser.get(motr.obs_velocity_, velocityr)) {
     // Display the reported velocity
 
-    Serial.print(" | Motor R Velo: ");
-    Serial.print(velocityr);
+    // Serial.print(" | Motor R Velo: ");
+    // Serial.print(velocityr);
   } else {
     Serial.print(" NRR ");
   }
@@ -383,8 +397,8 @@ void loop() {
   if (ser.get(motl.obs_velocity_, velocityl)) {
     // Display the reported velocity
 
-    Serial.print(" | Motor L Velo: ");
-    Serial.print(velocityl);
+    // Serial.print(" | Motor L Velo: ");
+    // Serial.print(velocityl);
   } else {
     Serial.print(" NRR ");
   }
@@ -417,10 +431,10 @@ void loop() {
   ser.get(angr.obs_angular_displacement_, q5);
   Serial.print(" q5: ");
   Serial.print(q5);
-  dq1 = gyro.z / 16.4 ;  //radians
+  dq1 = gyro.z / 16.4;  //radians
   Serial.print(" | dq1: ");
   Serial.print(dq1);
-  dq2 = -gyro.y / 16.4 ;  //radians
+  dq2 = -gyro.y / 16.4;  //radians
   Serial.print(" dq2: ");
   Serial.print(dq2);
   dq3 = gyro.x / 16.4;  //radians
@@ -437,34 +451,34 @@ void loop() {
   /*controller code*/
   float t2 = q3;
   float t4 = wmass * 2.0;
-  float t8 = wmass / 1.0E+2;
-  float t9 = q2 * 1.429673802570823E+2;
-  float t10 = q3 * 1.420289341108403E+2;
-  float t11 = q5 * 1.020570946849774;
-  float t12 = q4 * 1.034433339236874;
-  float t13 = dq2 * 2.404855958330733E+1;
-  float t14 = dq3 * 2.397991359830334E+1;
-  float t15 = dq4 * 8.661464499620468E-1;
-  float t16 = dq5 * 8.574709315181061E-1;
+  float t8 = wmass * 1.69E-2;
+  float t9 = q2 * 1.203210011390811E+2;
+  float t10 = q3 * 1.198501540420636E+2;
+  float t11 = q4 * 9.287448442614035E-1;
+  float t12 = q5 * 9.211640318625102E-1;
+  float t13 = dq3 * 2.229627428782927E+1;
+  float t14 = dq2 * 2.233333295757935E+1;
+  float t15 = dq5 * 8.472453159249492E-1;
+  float t16 = dq4 * 8.523940595548498E-1;
   float t3 = cos(t2);
   float t5 = t2 * 2.0;
   float t7 = bmass + t4;
-  float t17 = t9 + t12 + t13 + t15;
-  float t18 = t10 + t11 + t14 + t16;
+  float t17 = t10 + t12 + t13 + t15;
+  float t18 = t9 + t11 + t14 + t16;
   float t6 = cos(t5);
-  taul = (t17 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass / 2.0E+2 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + (bmass * t6) / 2.0E+2 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t17 * (Iywl + t8);
-  taur = t18 * (Ixwl + Iyb + Iywr + bmass / 1.0E+2 + wmass / 5.0E+1) - t18 * (Iywr + t8) + gr * l * t7 * sin(q3);
+  taul = (t18 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.45E-3 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.45E-3 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t18 * (Iywl + t8);
+  taur = t17 * (Ixwl + Iyb + Iywr + bmass * 1.69E-2 + wmass * 3.38E-2) - t17 * (Iywr + t8) + gr * l * t7 * sin(q3);
 
   /*Torque to Voltage path */
   currl = taul / kt;
   currr = taur / kt;
 
-  Serial.print(" curr L des: ");
-  Serial.print(currl);
+  // Serial.print(" curr L des: ");
+  // Serial.print(currl);
 
 
-  Serial.print(" curr R des: ");
-  Serial.print(currr);
+  // Serial.print(" curr R des: ");
+  // Serial.print(currr);
   /*current limiter*/
   if (currl > 5) {
     currl = 5;
@@ -495,8 +509,8 @@ void loop() {
     Motorcommandr = -voltager;
   }
   /*set motors to desired voltage */
-  ser.set(motr.drive_spin_volts_, Motorcommandr); /*Motorcommandr*/
-  ser.set(motl.drive_spin_volts_, Motorcommandl); /*Motorcommandl*/
+  ser.set(motr.drive_spin_volts_, Motorcommandr); 
+  ser.set(motl.drive_spin_volts_, Motorcommandl); 
 
   Serial.print(" Volt L Comm: ");
   Serial.print(Motorcommandl);
@@ -512,68 +526,67 @@ void loop() {
   // so you have to close this one before opening another.
   File dataFile = SD.open("datalog.txt", FILE_WRITE);
 
-  // if the file is available, write to it:
+  // if the file is available, write to it: CSV format
   if (dataFile) {
+    if (i = 1) {
+      dataFile.print(" |q1 ");
+      dataFile.print(" q2");
+      dataFile.print(" q3");
+      dataFile.print(" q4");
+      dataFile.print(" q5");
+      dataFile.print(" | dq1");
+      dataFile.print(" dq2");
+      dataFile.print(" dq3");
+      dataFile.print(" dq4");
+      dataFile.print(" dq5");
+      dataFile.print(" | Motor R Supp Volt: ");
+      dataFile.print(" | Motor L Supp Volt: ");
+      dataFile.print(" | Motor R Velo: ");
+      dataFile.print(" | Motor L Velo: ");
+      dataFile.print(" Volt L Comm: ");
+      dataFile.print(" Volt R Comm: ");
+      dataFile.print(" Date: ");
+      dataFile.print(" Time: ");
+      dataFile.println(" ");
+    }
 
-
-    dataFile.print(" | q1: ");
     dataFile.print(q1);
-
-    dataFile.print(" q2: ");
+    dataFile.print(", ");
     dataFile.print(q2);
-
-    dataFile.print(" q3: ");
+    dataFile.print(", ");
     dataFile.print(q3);
-
-    dataFile.print(" q4: ");
+    dataFile.print(", ");
     dataFile.print(q4);
-
-    dataFile.print(" q5: ");
+    dataFile.print(", ");
     dataFile.print(q5);
-
-    dataFile.print(" | dq1: ");
+    dataFile.print(", ");
     dataFile.print(dq1);
-
-    dataFile.print(" dq2: ");
+    dataFile.print(", ");
     dataFile.print(dq2);
-
-    dataFile.print(" dq3: ");
+    dataFile.print(", ");
     dataFile.print(dq3);
-
-    dataFile.print(" dq4: ");
+    dataFile.print(", ");
     dataFile.print(dq4);
-
-    dataFile.print(" dq5: ");
+    dataFile.print(", ");
     dataFile.print(dq5);
-
-    /*supply voltage data recieve*/
-
-    dataFile.print(" | Motor R Supp Volt: ");
+    dataFile.print(", ");
     dataFile.print(voltager);
-
-    dataFile.print(" | Motor L Supp Volt: ");
+    dataFile.print(", ");
     dataFile.print(voltagel);
-
-
-    // Display the reported velocity
-
-    dataFile.print(" | Motor R Velo: ");
+    dataFile.print(", ");
     dataFile.print(velocityr);
-
-    dataFile.print(" | Motor L Velo: ");
+    dataFile.print(", ");
     dataFile.print(velocityl);
-
-    dataFile.print(" Volt L Comm: ");
+    dataFile.print(", ");
     dataFile.print(Motorcommandl);
-
-    dataFile.print(" Volt R Comm: ");
+    dataFile.print(", ");
     dataFile.print(Motorcommandr);
-
     dataFile.println(" ");
 
     dataFile.close();
-  }
-  else{
+  } else {
     Serial.print("error opening datalog.txt");
+    dataFile.close();
   }
+  i++;
 }
