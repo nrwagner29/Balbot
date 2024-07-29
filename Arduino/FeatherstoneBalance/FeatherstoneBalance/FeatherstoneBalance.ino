@@ -93,17 +93,6 @@ void dmpDataReady() {
   mpuInterrupt = true;
 }
 
-const int chipSelect = 4;
-IqSerial ser(Serial1);
-BrushlessDriveClient motr(0);
-BrushlessDriveClient motl(2);
-PowerMonitorClient pwrr(0);
-PowerMonitorClient pwrl(2);
-MultiTurnAngleControlClient angr(0);
-MultiTurnAngleControlClient angl(2);
-
-/* Create an rtc object */
-RTCZero rtc;
 
 int i = 0;
 
@@ -137,8 +126,8 @@ float taul = 0;
 float taur = 0;
 float currl = 0;
 float currr = 0;
-float rmotorR = 0;
-float lmotorR = 0;
+float rmotorR = 4.7;
+float lmotorR = 4.7;
 float lemf = 0;
 float remf = 0;
 float kt = 0;
@@ -161,19 +150,36 @@ float FREQ = 200;
 float zero = 0;
 /* Change these values to set the current initial time */
 const byte seconds = 0;
-const byte minutes = 47;
-const byte hours = 05;
+const byte minutes = 28;
+const byte hours = 01;
 
 /* Change these values to set the current initial date */
-const byte day = 27;
+const byte day = 29;
 const byte month = 07;
 const byte year = 24;
 
+const int chipSelect = 4;
+IqSerial ser(Serial1);
+SerialInterfaceClient sicr(0);
+SerialInterfaceClient sicl(2);
+BrushlessDriveClient motr(0);
+BrushlessDriveClient motl(2);
+PowerMonitorClient pwrr(0);
+PowerMonitorClient pwrl(2);
+MultiTurnAngleControlClient angr(0);
+MultiTurnAngleControlClient angl(2);
+
+/* Create an rtc object */
+RTCZero rtc;
+
+uint32_t L2baud = 0;
+uint32_t R0baud = 0;
 
 void setup() {
   // Initialize serial and wait for port to open:
   // Initialize the IqSerial object
-  ser.begin(115200);
+  ser.begin(921600);
+
 
   // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -184,10 +190,18 @@ void setup() {
 #endif
 
 
-  Serial.begin(115200);
+  Serial.begin(921600);
   while (!Serial)
     ;  // will pause MKR until serial console opens
 
+
+  ser.set(sicl.baud_rate_, (uint32_t)921600);
+  ser.get(sicl.baud_rate_, L2baud);
+  Serial.print(L2baud);
+  
+  ser.set(sicr.baud_rate_, (uint32_t)921600);
+  ser.get(sicr.baud_rate_, R0baud);
+  Serial.print(R0baud);
 
   Serial.println("Adafruit MPU6050 and Vertiq Motor Test!");
   Serial.print("Initializing SD card...");
@@ -375,14 +389,14 @@ void loop() {
 #endif
   }
 
-  // if (ser.get(pwrr.volts_, voltager)) {
-  //   Serial.print(" | Motor R Supp Volt: ");
-  //   Serial.print(voltager);
-  // }
-  // if (ser.get(pwrl.volts_, voltagel)) {
-  //   Serial.print(" | Motor L Supp Volt: ");
-  //   Serial.print(voltagel);
-  // }
+  if (ser.get(pwrr.volts_, voltager)) {
+    // Serial.print(" | Motor R Supp Volt: ");
+    // Serial.print(voltager);
+  }
+  if (ser.get(pwrl.volts_, voltagel)) {
+    // Serial.print(" | Motor L Supp Volt: ");
+    // Serial.print(voltagel);
+  }
   // Get the velocity. If a response was received...
 
   if (ser.get(motr.obs_velocity_, velocityr)) {
@@ -402,52 +416,52 @@ void loop() {
   } else {
     Serial.print(" NRR ");
   }
-  Serial.println(" ");
+
 
   /*get params*/
   ser.get(motr.motor_R_ohm_, rmotorR);
   //   Serial.print(rmotorR);
   ser.get(motl.motor_R_ohm_, lmotorR);
   //   Serial.print(lmotorR);
-  ser.get(motr.emf_, remf);
+  ser.get(motr.motor_emf_calc_, remf);
   //   Serial.print(remf);
-  ser.get(motl.emf_, lemf);
+  ser.get(motl.motor_emf_calc_, lemf);
   //   Serial.print(lemf);
   kt = .053;
 
   /*states (q1 and dq1 not used)*/
-  q1 = ypr[0];  //radians
+  q1 = -ypr[0];  //radians
   Serial.print(" | q1: ");
-  Serial.print(q1);
+  Serial.print(q1, 3);
   q2 = ypr[1];
   Serial.print(" q2: ");
-  Serial.print(q2);
+  Serial.print(q2, 3);
   q3 = ypr[2];
   Serial.print(" q3: ");
-  Serial.print(q3);
+  Serial.print(q3, 3);
   ser.get(angl.obs_angular_displacement_, q4);
   Serial.print(" q4: ");
-  Serial.print(q4);
+  Serial.print(q4, 3);
   ser.get(angr.obs_angular_displacement_, q5);
   Serial.print(" q5: ");
-  Serial.print(q5);
-  dq1 = gyro.z / 16.4;  //radians
+  Serial.print(q5, 3);
+  dq1 = gyro.z / 16.4 / 180 * M_PI;  //radians
   Serial.print(" | dq1: ");
-  Serial.print(dq1);
-  dq2 = -gyro.y / 16.4;  //radians
+  Serial.print(dq1, 3);
+  dq2 = -gyro.y / 16.4 / 180 * M_PI;  //radians
   Serial.print(" dq2: ");
-  Serial.print(dq2);
-  dq3 = gyro.x / 16.4;  //radians
+  Serial.print(dq2, 3);
+  dq3 = gyro.x / 16.4 / 180 * M_PI;  //radians
   Serial.print(" dq3: ");
-  Serial.print(dq3);
+  Serial.print(dq3, 3);
   dq4 = velocityl;
   Serial.print(" dq4: ");
-  Serial.print(dq4);
+  Serial.print(dq4, 3);
   dq5 = velocityr;
   Serial.print(" dq5: ");
-  Serial.print(dq5);
+  Serial.print(dq5, 3);
 
-
+  Serial.println(" ");
   /*controller code*/
   float t2 = q3;
   float t4 = wmass * 2.0;
@@ -473,12 +487,12 @@ void loop() {
   currl = taul / kt;
   currr = taur / kt;
 
-  // Serial.print(" curr L des: ");
-  // Serial.print(currl);
+  Serial.print(" c L: ");
+  Serial.print(currl, 3);
 
 
-  // Serial.print(" curr R des: ");
-  // Serial.print(currr);
+  Serial.print(" c R: ");
+  Serial.print(currr, 3);
   /*current limiter*/
   if (currl > 5) {
     currl = 5;
@@ -493,11 +507,11 @@ void loop() {
   }
 
   /*current to voltage calc*/
-  Motorcommandl = lemf + lmotorR * currl;
-  Motorcommandr = remf + rmotorR * currr;
+  Motorcommandl = lemf + (lmotorR * currl);
+  Motorcommandr = remf + (rmotorR * currr);
 
 
-  /*voltage limiter*/
+  /*voltage limiter if pulling voltage only*/
   if (Motorcommandl > voltagel) {
     Motorcommandl = voltagel;
   } else if (Motorcommandl < -voltagel) {
@@ -509,84 +523,92 @@ void loop() {
     Motorcommandr = -voltager;
   }
   /*set motors to desired voltage */
-  ser.set(motr.drive_spin_volts_, Motorcommandr); 
-  ser.set(motl.drive_spin_volts_, Motorcommandl); 
+  ser.set(motr.drive_spin_volts_, zero);  //Motorcommandr
+  ser.set(motl.drive_spin_volts_, zero);  //Motorcommandl
 
-  Serial.print(" Volt L Comm: ");
+  Serial.print(" V L: ");
   Serial.print(Motorcommandl);
 
 
-  Serial.print(" Volt R Comm: ");
+  Serial.print(" V R: ");
   Serial.print(Motorcommandr);
 
 
-  /*Write data to sd card*/
+  //   /*Write data to sd card*/
 
-  // open the file. note that only one file can be open at a time,
-  // so you have to close this one before opening another.
-  File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  //   // open the file. note that only one file can be open at a time,
+  //   // so you have to close this one before opening another.
+  //   File dataFile = SD.open("datalog.txt", FILE_WRITE);
 
-  // if the file is available, write to it: CSV format
-  if (dataFile) {
-    if (i = 1) {
-      dataFile.print(" |q1 ");
-      dataFile.print(" q2");
-      dataFile.print(" q3");
-      dataFile.print(" q4");
-      dataFile.print(" q5");
-      dataFile.print(" | dq1");
-      dataFile.print(" dq2");
-      dataFile.print(" dq3");
-      dataFile.print(" dq4");
-      dataFile.print(" dq5");
-      dataFile.print(" | Motor R Supp Volt: ");
-      dataFile.print(" | Motor L Supp Volt: ");
-      dataFile.print(" | Motor R Velo: ");
-      dataFile.print(" | Motor L Velo: ");
-      dataFile.print(" Volt L Comm: ");
-      dataFile.print(" Volt R Comm: ");
-      dataFile.print(" Date: ");
-      dataFile.print(" Time: ");
-      dataFile.println(" ");
-    }
+  //   // if the file is available, write to it: CSV format
+  //   if (dataFile) {
+  //     if (i = 1) {
+  //       dataFile.print(" |q1 ");
+  //       dataFile.print(" q2");
+  //       dataFile.print(" q3");
+  //       dataFile.print(" q4");
+  //       dataFile.print(" q5");
+  //       dataFile.print(" | dq1");
+  //       dataFile.print(" dq2");
+  //       dataFile.print(" dq3");
+  //       dataFile.print(" dq4");
+  //       dataFile.print(" dq5");
+  //       dataFile.print(" | Motor R Supp Volt: ");
+  //       dataFile.print(" | Motor L Supp Volt: ");
+  //       dataFile.print(" | Motor R Velo: ");
+  //       dataFile.print(" | Motor L Velo: ");
+  //       dataFile.print(" Volt L Comm: ");
+  //       dataFile.print(" Volt R Comm: ");
+  //       dataFile.print(" Date: ");
+  //       dataFile.print(" Time: ");
+  //       dataFile.println(" ");
+  //     }
 
-    dataFile.print(q1);
-    dataFile.print(", ");
-    dataFile.print(q2);
-    dataFile.print(", ");
-    dataFile.print(q3);
-    dataFile.print(", ");
-    dataFile.print(q4);
-    dataFile.print(", ");
-    dataFile.print(q5);
-    dataFile.print(", ");
-    dataFile.print(dq1);
-    dataFile.print(", ");
-    dataFile.print(dq2);
-    dataFile.print(", ");
-    dataFile.print(dq3);
-    dataFile.print(", ");
-    dataFile.print(dq4);
-    dataFile.print(", ");
-    dataFile.print(dq5);
-    dataFile.print(", ");
-    dataFile.print(voltager);
-    dataFile.print(", ");
-    dataFile.print(voltagel);
-    dataFile.print(", ");
-    dataFile.print(velocityr);
-    dataFile.print(", ");
-    dataFile.print(velocityl);
-    dataFile.print(", ");
-    dataFile.print(Motorcommandl);
-    dataFile.print(", ");
-    dataFile.print(Motorcommandr);
-    dataFile.println(" ");
+  //     dataFile.print(q1);
+  //     dataFile.print(", ");
+  //     dataFile.print(q2);
+  //     dataFile.print(", ");
+  //     dataFile.print(q3);
+  //     dataFile.print(", ");
+  //     dataFile.print(q4);
+  //     dataFile.print(", ");
+  //     dataFile.print(q5);
+  //     dataFile.print(", ");
+  //     dataFile.print(dq1);
+  //     dataFile.print(", ");
+  //     dataFile.print(dq2);
+  //     dataFile.print(", ");
+  //     dataFile.print(dq3);
+  //     dataFile.print(", ");
+  //     dataFile.print(dq4);
+  //     dataFile.print(", ");
+  //     dataFile.print(dq5);
+  //     dataFile.print(", ");
+  //     dataFile.print(voltager);
+  //     dataFile.print(", ");
+  //     dataFile.print(voltagel);
+  //     dataFile.print(", ");
+  //     dataFile.print(velocityr);
+  //     dataFile.print(", ");
+  //     dataFile.print(velocityl);
+  //     dataFile.print(", ");
+  //     dataFile.print(Motorcommandl);
+  //     dataFile.print(", ");
+  //     dataFile.print(rtc.getDay());
+  //     dataFile.print("/");
+  //     dataFile.print(rtc.getMonth());
+  //     dataFile.print("/");
+  //     dataFile.print(rtc.getYear());
+  //     dataFile.print(", ");
+  //     dataFile.print(rtc.getHours());
+  //     dataFile.print(":");
+  //     dataFile.print(rtc.getMinutes());
+  //     dataFile.print(":");
+  //     dataFile.print(rtc.getSeconds());
 
-    dataFile.close();
-  } else {
-    Serial.print("error opening datalog.txt");
-    dataFile.close();
-  }
-  i++;
+  //     dataFile.println(" ");
+
+  //     dataFile.close();
+  //   }
+  //   i++;
 }
