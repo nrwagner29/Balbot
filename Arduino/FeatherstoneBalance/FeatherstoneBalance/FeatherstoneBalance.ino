@@ -161,18 +161,18 @@ const byte year = 24;
 const int chipSelect = 4;
 IqSerial ser(Serial1);
 SerialInterfaceClient sicr(0);
-SerialInterfaceClient sicl(2);
+SerialInterfaceClient sicl(1);
 BrushlessDriveClient motr(0);
-BrushlessDriveClient motl(2);
+BrushlessDriveClient motl(1);
 PowerMonitorClient pwrr(0);
-PowerMonitorClient pwrl(2);
+PowerMonitorClient pwrl(1);
 MultiTurnAngleControlClient angr(0);
-MultiTurnAngleControlClient angl(2);
+MultiTurnAngleControlClient angl(1);
 
 /* Create an rtc object */
 RTCZero rtc;
 
-uint32_t L2baud = 0;
+uint32_t L1baud = 0;
 uint32_t R0baud = 0;
 
 void setup() {
@@ -196,8 +196,8 @@ void setup() {
 
 
   ser.set(sicl.baud_rate_, (uint32_t)921600);
-  ser.get(sicl.baud_rate_, L2baud);
-  Serial.print(L2baud);
+  ser.get(sicl.baud_rate_, L1baud);
+  Serial.print(L1baud);
   
   ser.set(sicr.baud_rate_, (uint32_t)921600);
   ser.get(sicr.baud_rate_, R0baud);
@@ -455,10 +455,10 @@ void loop() {
   Serial.print(" dq3: ");
   Serial.print(dq3, 3);
   dq4 = velocityl;
-  Serial.print(" dq4: ");
+  Serial.print(" dq4: "); //lowpass filter?
   Serial.print(dq4, 3);
   dq5 = velocityr;
-  Serial.print(" dq5: ");
+  Serial.print(" dq5: "); //Lowpass Filter?
   Serial.print(dq5, 3);
 
   Serial.println(" ");
@@ -542,25 +542,25 @@ void loop() {
 
     // if the file is available, write to it: CSV format
     if (dataFile) {
-      if (i = 1) {
-        dataFile.print(" |q1 ");
-        dataFile.print(" q2");
-        dataFile.print(" q3");
-        dataFile.print(" q4");
-        dataFile.print(" q5");
-        dataFile.print(" | dq1");
-        dataFile.print(" dq2");
-        dataFile.print(" dq3");
-        dataFile.print(" dq4");
-        dataFile.print(" dq5");
-        dataFile.print(" | Motor R Supp Volt: ");
-        dataFile.print(" | Motor L Supp Volt: ");
-        dataFile.print(" | Motor R Velo: ");
-        dataFile.print(" | Motor L Velo: ");
-        dataFile.print(" Volt L Comm: ");
-        dataFile.print(" Volt R Comm: ");
-        dataFile.print(" Date: ");
-        dataFile.print(" Time: ");
+      if (i = 0) {
+        dataFile.print(" q1");
+        dataFile.print(", q2");
+        dataFile.print(", q3");
+        dataFile.print(", q4");
+        dataFile.print(", q5");
+        dataFile.print(", dq1");
+        dataFile.print(", dq2");
+        dataFile.print(", dq3");
+        dataFile.print(", dq4");
+        dataFile.print(", dq5");
+        // dataFile.print(" | Motor R Supp Volt: ");
+        // dataFile.print(" | Motor L Supp Volt: ");
+        // dataFile.print(" | Motor R Velo: ");
+        // dataFile.print(" | Motor L Velo: ");
+        dataFile.print(", Volt L Comm: ");
+        dataFile.print(", Volt R Comm: ");
+        dataFile.print(", Date: ");
+        dataFile.print(", Time: ");
         dataFile.println(" ");
       }
 
@@ -584,15 +584,17 @@ void loop() {
       dataFile.print(", ");
       dataFile.print(dq5);
       dataFile.print(", ");
-      dataFile.print(voltager);
-      dataFile.print(", ");
-      dataFile.print(voltagel);
-      dataFile.print(", ");
-      dataFile.print(velocityr);
-      dataFile.print(", ");
-      dataFile.print(velocityl);
-      dataFile.print(", ");
+      // dataFile.print(voltager);
+      // dataFile.print(", ");
+      // dataFile.print(voltagel);
+      // dataFile.print(", ");
+      // dataFile.print(velocityr);
+      // dataFile.print(", ");
+      // dataFile.print(velocityl);
+      // dataFile.print(", ");
       dataFile.print(Motorcommandl);
+      dataFile.print(", ");
+      dataFile.print(Motorcommandr);
       dataFile.print(", ");
       dataFile.print(rtc.getDay());
       dataFile.print("/");
@@ -609,6 +611,7 @@ void loop() {
       dataFile.println(" ");
 
       dataFile.close();
+      i=i+1;
     }
-    i++;
+    
 }
