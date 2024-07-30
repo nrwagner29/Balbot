@@ -198,7 +198,7 @@ void setup() {
   ser.set(sicl.baud_rate_, (uint32_t)921600);
   ser.get(sicl.baud_rate_, L1baud);
   Serial.print(L1baud);
-  
+
   ser.set(sicr.baud_rate_, (uint32_t)921600);
   ser.get(sicr.baud_rate_, R0baud);
   Serial.print(R0baud);
@@ -454,11 +454,11 @@ void loop() {
   dq3 = gyro.x / 16.4 / 180 * M_PI;  //radians
   Serial.print(" dq3: ");
   Serial.print(dq3, 3);
-  dq4 = velocityl;
-  Serial.print(" dq4: "); //lowpass filter?
+  dq4 = -velocityl;
+  Serial.print(" dq4: ");  //lowpass filter?
   Serial.print(dq4, 3);
-  dq5 = velocityr;
-  Serial.print(" dq5: "); //Lowpass Filter?
+  dq5 = -velocityr;
+  Serial.print(" dq5: ");  //Lowpass Filter?
   Serial.print(dq5, 3);
 
   Serial.println(" ");
@@ -522,9 +522,17 @@ void loop() {
   } else if (Motorcommandr < -voltager) {
     Motorcommandr = -voltager;
   }
+
   /*set motors to desired voltage */
-  ser.set(motr.drive_spin_volts_, zero);  //Motorcommandr
-  ser.set(motl.drive_spin_volts_, zero);  //Motorcommandl
+
+  if (abs(q2) > .25 | abs(q3) > .25) {
+    ser.set(motr.drive_brake_);  
+    ser.set(motl.drive_brake_);  
+  } else {
+    ser.set(motr.drive_spin_volts_, Motorcommandr);  //zero
+    ser.set(motl.drive_spin_volts_, Motorcommandl);  //zero
+  }
+
 
   Serial.print(" V L: ");
   Serial.print(Motorcommandl);
@@ -534,84 +542,83 @@ void loop() {
   Serial.print(Motorcommandr);
 
 
-    /*Write data to sd card*/
+  /*Write data to sd card*/
 
-    // open the file. note that only one file can be open at a time,
-    // so you have to close this one before opening another.
-    File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  // open the file. note that only one file can be open at a time,
+  // so you have to close this one before opening another.
+  File dataFile = SD.open("datalog.txt", FILE_WRITE);
 
-    // if the file is available, write to it: CSV format
-    if (dataFile) {
-      if (i = 0) {
-        dataFile.print(" q1");
-        dataFile.print(", q2");
-        dataFile.print(", q3");
-        dataFile.print(", q4");
-        dataFile.print(", q5");
-        dataFile.print(", dq1");
-        dataFile.print(", dq2");
-        dataFile.print(", dq3");
-        dataFile.print(", dq4");
-        dataFile.print(", dq5");
-        // dataFile.print(" | Motor R Supp Volt: ");
-        // dataFile.print(" | Motor L Supp Volt: ");
-        // dataFile.print(" | Motor R Velo: ");
-        // dataFile.print(" | Motor L Velo: ");
-        dataFile.print(", Volt L Comm: ");
-        dataFile.print(", Volt R Comm: ");
-        dataFile.print(", Date: ");
-        dataFile.print(", Time: ");
-        dataFile.println(" ");
-      }
-
-      dataFile.print(q1);
-      dataFile.print(", ");
-      dataFile.print(q2);
-      dataFile.print(", ");
-      dataFile.print(q3);
-      dataFile.print(", ");
-      dataFile.print(q4);
-      dataFile.print(", ");
-      dataFile.print(q5);
-      dataFile.print(", ");
-      dataFile.print(dq1);
-      dataFile.print(", ");
-      dataFile.print(dq2);
-      dataFile.print(", ");
-      dataFile.print(dq3);
-      dataFile.print(", ");
-      dataFile.print(dq4);
-      dataFile.print(", ");
-      dataFile.print(dq5);
-      dataFile.print(", ");
-      // dataFile.print(voltager);
-      // dataFile.print(", ");
-      // dataFile.print(voltagel);
-      // dataFile.print(", ");
-      // dataFile.print(velocityr);
-      // dataFile.print(", ");
-      // dataFile.print(velocityl);
-      // dataFile.print(", ");
-      dataFile.print(Motorcommandl);
-      dataFile.print(", ");
-      dataFile.print(Motorcommandr);
-      dataFile.print(", ");
-      dataFile.print(rtc.getDay());
-      dataFile.print("/");
-      dataFile.print(rtc.getMonth());
-      dataFile.print("/");
-      dataFile.print(rtc.getYear());
-      dataFile.print(", ");
-      dataFile.print(rtc.getHours());
-      dataFile.print(":");
-      dataFile.print(rtc.getMinutes());
-      dataFile.print(":");
-      dataFile.print(rtc.getSeconds());
-
+  // if the file is available, write to it: CSV format
+  if (dataFile) {
+    if (i = 0) {
+      dataFile.print(" q1");
+      dataFile.print(", q2");
+      dataFile.print(", q3");
+      dataFile.print(", q4");
+      dataFile.print(", q5");
+      dataFile.print(", dq1");
+      dataFile.print(", dq2");
+      dataFile.print(", dq3");
+      dataFile.print(", dq4");
+      dataFile.print(", dq5");
+      // dataFile.print(" | Motor R Supp Volt: ");
+      // dataFile.print(" | Motor L Supp Volt: ");
+      // dataFile.print(" | Motor R Velo: ");
+      // dataFile.print(" | Motor L Velo: ");
+      dataFile.print(", Volt L Comm: ");
+      dataFile.print(", Volt R Comm: ");
+      dataFile.print(", Date: ");
+      dataFile.print(", Time: ");
       dataFile.println(" ");
-
-      dataFile.close();
-      i=i+1;
     }
-    
+
+    dataFile.print(q1);
+    dataFile.print(", ");
+    dataFile.print(q2);
+    dataFile.print(", ");
+    dataFile.print(q3);
+    dataFile.print(", ");
+    dataFile.print(q4);
+    dataFile.print(", ");
+    dataFile.print(q5);
+    dataFile.print(", ");
+    dataFile.print(dq1);
+    dataFile.print(", ");
+    dataFile.print(dq2);
+    dataFile.print(", ");
+    dataFile.print(dq3);
+    dataFile.print(", ");
+    dataFile.print(dq4);
+    dataFile.print(", ");
+    dataFile.print(dq5);
+    dataFile.print(", ");
+    // dataFile.print(voltager);
+    // dataFile.print(", ");
+    // dataFile.print(voltagel);
+    // dataFile.print(", ");
+    // dataFile.print(velocityr);
+    // dataFile.print(", ");
+    // dataFile.print(velocityl);
+    // dataFile.print(", ");
+    dataFile.print(Motorcommandl);
+    dataFile.print(", ");
+    dataFile.print(Motorcommandr);
+    dataFile.print(", ");
+    dataFile.print(rtc.getDay());
+    dataFile.print("/");
+    dataFile.print(rtc.getMonth());
+    dataFile.print("/");
+    dataFile.print(rtc.getYear());
+    dataFile.print(", ");
+    dataFile.print(rtc.getHours());
+    dataFile.print(":");
+    dataFile.print(rtc.getMinutes());
+    dataFile.print(":");
+    dataFile.print(rtc.getSeconds());
+
+    dataFile.println(" ");
+
+    dataFile.close();
+    i = i + 1;
+  }
 }
