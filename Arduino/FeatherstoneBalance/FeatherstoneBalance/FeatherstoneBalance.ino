@@ -534,81 +534,81 @@ void loop() {
   Serial.print(Motorcommandr);
 
 
-  //   /*Write data to sd card*/
+    /*Write data to sd card*/
 
-  //   // open the file. note that only one file can be open at a time,
-  //   // so you have to close this one before opening another.
-  //   File dataFile = SD.open("datalog.txt", FILE_WRITE);
+    // open the file. note that only one file can be open at a time,
+    // so you have to close this one before opening another.
+    File dataFile = SD.open("datalog.txt", FILE_WRITE);
 
-  //   // if the file is available, write to it: CSV format
-  //   if (dataFile) {
-  //     if (i = 1) {
-  //       dataFile.print(" |q1 ");
-  //       dataFile.print(" q2");
-  //       dataFile.print(" q3");
-  //       dataFile.print(" q4");
-  //       dataFile.print(" q5");
-  //       dataFile.print(" | dq1");
-  //       dataFile.print(" dq2");
-  //       dataFile.print(" dq3");
-  //       dataFile.print(" dq4");
-  //       dataFile.print(" dq5");
-  //       dataFile.print(" | Motor R Supp Volt: ");
-  //       dataFile.print(" | Motor L Supp Volt: ");
-  //       dataFile.print(" | Motor R Velo: ");
-  //       dataFile.print(" | Motor L Velo: ");
-  //       dataFile.print(" Volt L Comm: ");
-  //       dataFile.print(" Volt R Comm: ");
-  //       dataFile.print(" Date: ");
-  //       dataFile.print(" Time: ");
-  //       dataFile.println(" ");
-  //     }
+    // if the file is available, write to it: CSV format
+    if (dataFile) {
+      if (i = 1) {
+        dataFile.print(" |q1 ");
+        dataFile.print(" q2");
+        dataFile.print(" q3");
+        dataFile.print(" q4");
+        dataFile.print(" q5");
+        dataFile.print(" | dq1");
+        dataFile.print(" dq2");
+        dataFile.print(" dq3");
+        dataFile.print(" dq4");
+        dataFile.print(" dq5");
+        dataFile.print(" | Motor R Supp Volt: ");
+        dataFile.print(" | Motor L Supp Volt: ");
+        dataFile.print(" | Motor R Velo: ");
+        dataFile.print(" | Motor L Velo: ");
+        dataFile.print(" Volt L Comm: ");
+        dataFile.print(" Volt R Comm: ");
+        dataFile.print(" Date: ");
+        dataFile.print(" Time: ");
+        dataFile.println(" ");
+      }
 
-  //     dataFile.print(q1);
-  //     dataFile.print(", ");
-  //     dataFile.print(q2);
-  //     dataFile.print(", ");
-  //     dataFile.print(q3);
-  //     dataFile.print(", ");
-  //     dataFile.print(q4);
-  //     dataFile.print(", ");
-  //     dataFile.print(q5);
-  //     dataFile.print(", ");
-  //     dataFile.print(dq1);
-  //     dataFile.print(", ");
-  //     dataFile.print(dq2);
-  //     dataFile.print(", ");
-  //     dataFile.print(dq3);
-  //     dataFile.print(", ");
-  //     dataFile.print(dq4);
-  //     dataFile.print(", ");
-  //     dataFile.print(dq5);
-  //     dataFile.print(", ");
-  //     dataFile.print(voltager);
-  //     dataFile.print(", ");
-  //     dataFile.print(voltagel);
-  //     dataFile.print(", ");
-  //     dataFile.print(velocityr);
-  //     dataFile.print(", ");
-  //     dataFile.print(velocityl);
-  //     dataFile.print(", ");
-  //     dataFile.print(Motorcommandl);
-  //     dataFile.print(", ");
-  //     dataFile.print(rtc.getDay());
-  //     dataFile.print("/");
-  //     dataFile.print(rtc.getMonth());
-  //     dataFile.print("/");
-  //     dataFile.print(rtc.getYear());
-  //     dataFile.print(", ");
-  //     dataFile.print(rtc.getHours());
-  //     dataFile.print(":");
-  //     dataFile.print(rtc.getMinutes());
-  //     dataFile.print(":");
-  //     dataFile.print(rtc.getSeconds());
+      dataFile.print(q1);
+      dataFile.print(", ");
+      dataFile.print(q2);
+      dataFile.print(", ");
+      dataFile.print(q3);
+      dataFile.print(", ");
+      dataFile.print(q4);
+      dataFile.print(", ");
+      dataFile.print(q5);
+      dataFile.print(", ");
+      dataFile.print(dq1);
+      dataFile.print(", ");
+      dataFile.print(dq2);
+      dataFile.print(", ");
+      dataFile.print(dq3);
+      dataFile.print(", ");
+      dataFile.print(dq4);
+      dataFile.print(", ");
+      dataFile.print(dq5);
+      dataFile.print(", ");
+      dataFile.print(voltager);
+      dataFile.print(", ");
+      dataFile.print(voltagel);
+      dataFile.print(", ");
+      dataFile.print(velocityr);
+      dataFile.print(", ");
+      dataFile.print(velocityl);
+      dataFile.print(", ");
+      dataFile.print(Motorcommandl);
+      dataFile.print(", ");
+      dataFile.print(rtc.getDay());
+      dataFile.print("/");
+      dataFile.print(rtc.getMonth());
+      dataFile.print("/");
+      dataFile.print(rtc.getYear());
+      dataFile.print(", ");
+      dataFile.print(rtc.getHours());
+      dataFile.print(":");
+      dataFile.print(rtc.getMinutes());
+      dataFile.print(":");
+      dataFile.print(rtc.getSeconds());
 
-  //     dataFile.println(" ");
+      dataFile.println(" ");
 
-  //     dataFile.close();
-  //   }
-  //   i++;
+      dataFile.close();
+    }
+    i++;
 }
