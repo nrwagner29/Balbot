@@ -95,7 +95,9 @@ void dmpDataReady() {
 
 
 int i = 0;
-
+int motordrive = 0;  /*change if want motors on or off*/
+int serialprint = 1; /*change to 1 if want telemetrics to print to serial*/
+int sdprint = 1; /*change to 1 if want print to sd card*/
 //Balbot chassis
 float Ixb = 0.0003478;
 float Iyb = 0.0004134;
@@ -148,15 +150,16 @@ float ax = 0;
 float ay = 0;
 float FREQ = 200;
 float zero = 0;
-/* Change these values to set the current initial time */
-const byte seconds = 0;
-const byte minutes = 28;
-const byte hours = 01;
+unsigned long time = 0;
+// /* Change these values to set the current initial time */
+// const byte seconds = 0;
+// const byte minutes = 28;
+// const byte hours = 01;
 
-/* Change these values to set the current initial date */
-const byte day = 29;
-const byte month = 07;
-const byte year = 24;
+// /* Change these values to set the current initial date */
+// const byte day = 29;
+// const byte month = 07;
+// const byte year = 24;
 
 const int chipSelect = 4;
 IqSerial ser(Serial1);
@@ -170,7 +173,7 @@ MultiTurnAngleControlClient angr(0);
 MultiTurnAngleControlClient angl(1);
 
 /* Create an rtc object */
-RTCZero rtc;
+// RTCZero rtc;
 
 uint32_t L1baud = 0;
 uint32_t R0baud = 0;
@@ -207,6 +210,7 @@ void setup() {
   Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
+  if (sdprint != 0){
   if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
@@ -222,7 +226,7 @@ void setup() {
   // verify connection
   Serial.println(F("Testing device connections..."));
   Serial.println(i2cmpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-
+  }
   // wait for ready
   Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   while (Serial.available() && Serial.read())
@@ -276,7 +280,6 @@ void setup() {
     Serial.println(F(")"));
   }
 
-
   /*zero all motor control and read values*/
   ser.set(angl.obs_angular_displacement_, zero);
   ser.set(angr.obs_angular_displacement_, zero);
@@ -284,44 +287,44 @@ void setup() {
   ser.set(angl.ctrl_volts_, zero);
   ser.set(angr.ctrl_volts_, zero);
   /*Zero and set time on RTC*/
-  rtc.setTime(hours, minutes, seconds);
-  rtc.setDate(day, month, year);
-
+  // rtc.setTime(hours, minutes, seconds);
+  // rtc.setDate(day, month, year);
   delay(1000);
 }
 
 void loop() {
   // Your code here
-
-
+  time = micros();
+    Serial.print("Start Loop Time: ");
+    Serial.println(time);
 
   if (!dmpReady) return;
   // read a packet from FIFO
   if (i2cmpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {  // Get the Latest packet
-#ifdef OUTPUT_READABLE_QUATERNION
-    // display quaternion values in easy matrix form: w x y z
-    i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
-    Serial.print(" quat\t");
-    Serial.print(q.w);
-    Serial.print("\t");
-    Serial.print(q.x);
-    Serial.print("\t");
-    Serial.print(q.y);
-    Serial.print("\t");
-    Serial.print(q.z);
-#endif
+// #ifdef OUTPUT_READABLE_QUATERNION
+//     // display quaternion values in easy matrix form: w x y z
+//     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
+//     Serial.print(" quat\t");
+//     Serial.print(q.w);
+//     Serial.print("\t");
+//     Serial.print(q.x);
+//     Serial.print("\t");
+//     Serial.print(q.y);
+//     Serial.print("\t");
+//     Serial.print(q.z);
+// #endif
 
-#ifdef OUTPUT_READABLE_EULER
-    // display Euler angles in degrees
-    i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
-    i2cmpu.dmpGetEuler(euler, &q);
-    Serial.print(" euler\t");
-    Serial.print(euler[0] * 180 / M_PI);
-    Serial.print("\t");
-    Serial.print(euler[1] * 180 / M_PI);
-    Serial.print("\t");
-    Serial.print(euler[2] * 180 / M_PI);
-#endif
+// #ifdef OUTPUT_READABLE_EULER
+//     // display Euler angles in degrees
+//     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
+//     i2cmpu.dmpGetEuler(euler, &q);
+//     Serial.print(" euler\t");
+//     Serial.print(euler[0] * 180 / M_PI);
+//     Serial.print("\t");
+//     Serial.print(euler[1] * 180 / M_PI);
+//     Serial.print("\t");
+//     Serial.print(euler[2] * 180 / M_PI);
+// #endif
 
 #ifdef OUTPUT_READABLE_YAWPITCHROLL
     // display Euler angles in degrees
@@ -343,51 +346,54 @@ void loop() {
     // Serial.print(gyro.z);
 #endif
 
-#ifdef OUTPUT_READABLE_REALACCEL
-    // display real acceleration, adjusted to remove gravity
-    i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
-    //i2cmpu.dmpSendGravity(uint_fast16_t elements, uint_fast16_t accuracy);
-    i2cmpu.dmpGetAccel(&aa, fifoBuffer);
-    i2cmpu.dmpGetGravity(&gravity, &q);
-    i2cmpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    Serial.print(" areal");
-    Serial.print(aaReal.x);
-    Serial.print(" ");
-    Serial.print(aaReal.y);
-    Serial.print(" ");
-    Serial.print(aaReal.z);
-#endif
+// #ifdef OUTPUT_READABLE_REALACCEL
+//     // display real acceleration, adjusted to remove gravity
+//     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
+//     //i2cmpu.dmpSendGravity(uint_fast16_t elements, uint_fast16_t accuracy);
+//     i2cmpu.dmpGetAccel(&aa, fifoBuffer);
+//     i2cmpu.dmpGetGravity(&gravity, &q);
+//     i2cmpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+//     Serial.print(" areal");
+//     Serial.print(aaReal.x);
+//     Serial.print(" ");
+//     Serial.print(aaReal.y);
+//     Serial.print(" ");
+//     Serial.print(aaReal.z);
+// #endif
 
-#ifdef OUTPUT_READABLE_WORLDACCEL
-    // display initial world-frame acceleration, adjusted to remove gravity
-    // and rotated based on known orientation from quaternion
-    i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
-    i2cmpu.dmpGetAccel(&aa, fifoBuffer);
-    i2cmpu.dmpGetGravity(&gravity, &q);
-    i2cmpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    i2cmpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-    Serial.print(" aworld\t");
-    Serial.print(aaWorld.x);
-    Serial.print("\t");
-    Serial.print(aaWorld.y);
-    Serial.print("\t");
-    Serial.print(aaWorld.z);
-#endif
+// #ifdef OUTPUT_READABLE_WORLDACCEL
+//     // display initial world-frame acceleration, adjusted to remove gravity
+//     // and rotated based on known orientation from quaternion
+//     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
+//     i2cmpu.dmpGetAccel(&aa, fifoBuffer);
+//     i2cmpu.dmpGetGravity(&gravity, &q);
+//     i2cmpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+//     i2cmpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
+//     Serial.print(" aworld\t");
+//     Serial.print(aaWorld.x);
+//     Serial.print("\t");
+//     Serial.print(aaWorld.y);
+//     Serial.print("\t");
+//     Serial.print(aaWorld.z);
+// #endif
 
-#ifdef OUTPUT_TEAPOT
-    // display quaternion values in InvenSense Teapot demo format:
-    teapotPacket[2] = fifoBuffer[0];
-    teapotPacket[3] = fifoBuffer[1];
-    teapotPacket[4] = fifoBuffer[4];
-    teapotPacket[5] = fifoBuffer[5];
-    teapotPacket[6] = fifoBuffer[8];
-    teapotPacket[7] = fifoBuffer[9];
-    teapotPacket[8] = fifoBuffer[12];
-    teapotPacket[9] = fifoBuffer[13];
-    Serial.write(teapotPacket, 14);
-    teapotPacket[11]++;  // packetCount, loops at 0xFF on purpose
-#endif
-  }
+// #ifdef OUTPUT_TEAPOT
+//     // display quaternion values in InvenSense Teapot demo format:
+//     teapotPacket[2] = fifoBuffer[0];
+//     teapotPacket[3] = fifoBuffer[1];
+//     teapotPacket[4] = fifoBuffer[4];
+//     teapotPacket[5] = fifoBuffer[5];
+//     teapotPacket[6] = fifoBuffer[8];
+//     teapotPacket[7] = fifoBuffer[9];
+//     teapotPacket[8] = fifoBuffer[12];
+//     teapotPacket[9] = fifoBuffer[13];
+//     Serial.write(teapotPacket, 14);
+//     teapotPacket[11]++;  // packetCount, loops at 0xFF on purpose
+// #endif
+   }
+      time = micros();
+    Serial.print("IMU get time: ");
+    Serial.println(time);
 
   if (ser.get(pwrr.volts_, voltager)) {
     // Serial.print(" | Motor R Supp Volt: ");
@@ -426,42 +432,52 @@ void loop() {
   ser.get(motr.motor_emf_calc_, remf);
   //   Serial.print(remf);
   ser.get(motl.motor_emf_calc_, lemf);
-  //   Serial.print(lemf);
+    // Serial.print(lemf);
+
+          time = micros();
+    Serial.print("get motor data time: ");
+    Serial.println(time);
   kt = .053;
 
   /*states (q1 and dq1 not used)*/
   q1 = -ypr[0];  //radians
-  Serial.print(" | q1: ");
-  Serial.print(q1, 3);
   q2 = ypr[1];
-  Serial.print(" q2: ");
-  Serial.print(q2, 3);
   q3 = ypr[2];
-  Serial.print(" q3: ");
-  Serial.print(q3, 3);
-  ser.get(angl.obs_angular_displacement_, q4);
-  Serial.print(" q4: ");
-  Serial.print(q4, 3);
-  ser.get(angr.obs_angular_displacement_, q5);
-  Serial.print(" q5: ");
-  Serial.print(q5, 3);
-  dq1 = gyro.z / 16.4 / 180 * M_PI;  //radians
-  Serial.print(" | dq1: ");
-  Serial.print(dq1, 3);
+  // ser.get(angl.obs_angular_displacement_, q4);
+  // ser.get(angr.obs_angular_displacement_, q5);
+  dq1 = gyro.z / 16.4 / 180 * M_PI;   //radians
   dq2 = -gyro.y / 16.4 / 180 * M_PI;  //radians
-  Serial.print(" dq2: ");
-  Serial.print(dq2, 3);
-  dq3 = gyro.x / 16.4 / 180 * M_PI;  //radians
-  Serial.print(" dq3: ");
-  Serial.print(dq3, 3);
-  dq4 = -velocityl;
-  Serial.print(" dq4: ");  //lowpass filter?
-  Serial.print(dq4, 3);
-  dq5 = -velocityr;
-  Serial.print(" dq5: ");  //Lowpass Filter?
-  Serial.print(dq5, 3);
-
-  Serial.println(" ");
+  dq3 = gyro.x / 16.4 / 180 * M_PI;   //radians
+  dq4 = velocityl;
+  dq5 = velocityr;
+  time = micros();
+  if (serialprint != 0) {
+    Serial.print(" | q1: ");
+    Serial.print(q1, 3);
+    Serial.print(" q2: ");
+    Serial.print(q2, 3);
+    Serial.print(" q3: ");
+    Serial.print(q3, 3);
+    Serial.print(" q4: ");
+    Serial.print(q4, 3);
+    Serial.print(" q5: ");
+    Serial.print(q5, 3);
+    Serial.print(" | dq1: ");
+    Serial.print(dq1, 3);
+    Serial.print(" dq2: ");
+    Serial.print(dq2, 3);
+    Serial.print(" dq3: ");
+    Serial.print(dq3, 3);
+    Serial.print(" dq4: ");  //lowpass filter?
+    Serial.print(dq4, 3);
+    Serial.print(" dq5: ");  //Lowpass Filter?
+    Serial.print(dq5, 3);
+    Serial.println(" ");
+    /*time*/
+      time = micros();
+    Serial.print("Print States time: ");
+    Serial.println(time);
+  }
   /*controller code*/
   float t2 = q3;
   float t4 = wmass * 2.0;
@@ -482,17 +498,19 @@ void loop() {
   float t6 = cos(t5);
   taul = (t18 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.45E-3 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.45E-3 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t18 * (Iywl + t8);
   taur = t17 * (Ixwl + Iyb + Iywr + bmass * 1.69E-2 + wmass * 3.38E-2) - t17 * (Iywr + t8) + gr * l * t7 * sin(q3);
-
+      time = micros();
+    Serial.print("Controller code time: ");
+    Serial.println(time);
   /*Torque to Voltage path */
   currl = taul / kt;
   currr = taur / kt;
 
+ if (serialprint != 0) {
   Serial.print(" c L: ");
   Serial.print(currl, 3);
-
-
   Serial.print(" c R: ");
   Serial.print(currr, 3);
+ }
   /*current limiter*/
   if (currl > 5) {
     currl = 5;
@@ -525,33 +543,39 @@ void loop() {
 
   /*set motors to desired voltage */
 
-  if (abs(q2) > .25 | abs(q3) > .25) {
-    ser.set(motr.drive_brake_);  
-    ser.set(motl.drive_brake_);  
-  } else {
-    ser.set(motr.drive_spin_volts_, Motorcommandr);  //zero
-    ser.set(motl.drive_spin_volts_, Motorcommandl);  //zero
+  if (abs(q2) > .20 | abs(q3) > .20) {
+    ser.set(motr.drive_brake_);
+    ser.set(motl.drive_brake_);
+  } else if (motordrive = 0) {
+    ser.set(motr.drive_spin_volts_, zero);
+    ser.set(motl.drive_spin_volts_, zero);
+  } else if (motordrive != 0) {
+    ser.set(motr.drive_spin_volts_, Motorcommandr);
+    ser.set(motl.drive_spin_volts_, Motorcommandl);
   }
+      time = micros();
+    Serial.print("Voltage driver time: ");
+    Serial.println(time);
 
-
+ if (serialprint != 0) {
   Serial.print(" V L: ");
   Serial.print(Motorcommandl);
-
-
   Serial.print(" V R: ");
   Serial.print(Motorcommandr);
-
-
+ }
   /*Write data to sd card*/
 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
+  if (sdprint != 0){
   File dataFile = SD.open("datalog.txt", FILE_WRITE);
 
   // if the file is available, write to it: CSV format
   if (dataFile) {
     if (i = 0) {
-      dataFile.print(" q1");
+
+      dataFile.print("Time");
+      dataFile.print(", q1");
       dataFile.print(", q2");
       dataFile.print(", q3");
       dataFile.print(", q4");
@@ -567,11 +591,12 @@ void loop() {
       // dataFile.print(" | Motor L Velo: ");
       dataFile.print(", Volt L Comm: ");
       dataFile.print(", Volt R Comm: ");
-      dataFile.print(", Date: ");
-      dataFile.print(", Time: ");
+      // dataFile.print(", Date: ");
+      // dataFile.print(", Time: ");
       dataFile.println(" ");
     }
-
+    dataFile.print(time);
+    dataFile.print(", ");
     dataFile.print(q1);
     dataFile.print(", ");
     dataFile.print(q2);
@@ -603,22 +628,26 @@ void loop() {
     dataFile.print(Motorcommandl);
     dataFile.print(", ");
     dataFile.print(Motorcommandr);
-    dataFile.print(", ");
-    dataFile.print(rtc.getDay());
-    dataFile.print("/");
-    dataFile.print(rtc.getMonth());
-    dataFile.print("/");
-    dataFile.print(rtc.getYear());
-    dataFile.print(", ");
-    dataFile.print(rtc.getHours());
-    dataFile.print(":");
-    dataFile.print(rtc.getMinutes());
-    dataFile.print(":");
-    dataFile.print(rtc.getSeconds());
+    // dataFile.print(", ");
+    // dataFile.print(rtc.getDay());
+    // dataFile.print("/");
+    // dataFile.print(rtc.getMonth());
+    // dataFile.print("/");
+    // dataFile.print(rtc.getYear());
+    // dataFile.print(", ");
+    // dataFile.print(rtc.getHours());
+    // dataFile.print(":");
+    // dataFile.print(rtc.getMinutes());
+    // dataFile.print(":");
+    // dataFile.print(rtc.getSeconds());
 
     dataFile.println(" ");
 
     dataFile.close();
     i = i + 1;
+      time = micros();
+    Serial.print("SD write time: ");
+    Serial.println(time);
+  }
   }
 }
