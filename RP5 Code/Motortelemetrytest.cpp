@@ -19,31 +19,45 @@
 * This example code is in the public domain.
 */
 
+#include <chrono>
 
+// NB: ALL OF THESE 3 FUNCTIONS BELOW USE SIGNED VALUES INTERNALLY AND WILL
+// EVENTUALLY OVERFLOW (AFTER 200+ YEARS OR SO), AFTER WHICH POINT THEY WILL
+// HAVE *SIGNED OVERFLOW*, WHICH IS UNDEFINED BEHAVIOR (IE: A BUG) FOR C/C++.
+// But...that's ok...this "bug" is designed into the C++11 specification, so
+// whatever. Your machine won't run for 200 years anyway...
+
+#include "lib/multi_turn_angle_control_client.hpp"
 #include "lib/generic_interface.hpp"
 #include "lib/temperature_estimator_client.hpp"
 #include "lib/SerialPort.h"
 #include "lib/SerialStream.h"
-
+#include "lib/brushless_drive_client.hpp"
 #include <string>
+#include <cmath>
+
 #include <iostream>
 #include "unistd.h"
+
+uint64_t micros();
+float zero = 0; // drive 0 volts
 
 using namespace LibSerial;
 
 int main(){
 
     // Setup the serial interface
-    SerialPort my_serial_port("/dev/ttyS0");
-    my_serial_port.SetBaudRate(BaudRate::BAUD_115200);
+    SerialPort my_serial_port("/dev/ttyAMA10");
+    my_serial_port.SetBaudRate(BaudRate::BAUD_921600);
 
     // Make a communication interface object
     // This is what creates and parses packets
     GenericInterface com;
 
-    // Make a Temperature Estimator Client object with obj_id 0
-    TemperatureEstimatorClient templeft(2);
+    // Make a Temperature Estimator Client object with obj_id 1
 
+    MultiTurnAngleControlClient angleft(1);
+    BrushlessDriveClient leftdrive(1);
 
     while(true){
 
@@ -55,10 +69,12 @@ int main(){
         // type:        (77) Temperature Estimator ID Number
         // subtype:     ( 0) temp
         // obj/access   ( 0) get
-        templeft.temp_.get(com);
+        angleft.obs_angular_displacement_.get(com);
+        zero = sin(.5*micros()/100000);
+        leftdrive.drive_spin_volts_.set(com, zero);
 
         uint8_t packet_buf[64];
-        uint8_t length = 0;
+        uint8_t length = 8;
 
         // Get the packet from the com interface and place it into the packet buffer
         if(com.GetTxBytes(packet_buf, length)){
@@ -77,23 +93,25 @@ int main(){
          *********************************************************************/
 
         // Need to wait for the Motor Controller to Respond
-        // usleep(5000);
+        usleep(5000);
 
         // Serial Receive Buffer
         std::string read_buf;
 
         //Checks
         
-        printf("Number of stop bits: %.0f ", my_serial_port.GetStopBits());
-        printf("Size of Character: %.0f ", my_serial_port.GetCharacterSize());
+        // printf("Number of stop bits: %.3f ", my_serial_port.GetStopBits());
+        // printf("Size of Character: %.3f ", my_serial_port.GetCharacterSize());
         
 
-        if(my_serial_port.IsOpen()){
-            printf("port is open ");
-        }
-       if(my_serial_port.IsDataAvailable()){
-            printf("port has data ");
-        }
+    //     if(my_serial_port.IsOpen()){
+    //         printf("port is open ");
+    //     }
+    //    if(my_serial_port.IsDataAvailable()){
+    //         printf("port has data ");
+    //     } else {
+    //         printf(" no data here ");
+    //     }
         // How many bytes are in the read buffer
         length = my_serial_port.GetNumberOfBytesAvailable();
 
@@ -105,9 +123,9 @@ int main(){
 
         // Transfer the buffer into the com interface
         if(com.SetRxBytes(cbuf, length)){
-            printf("packet available ");
+            // printf(" packet available ");
         } else{
-             printf("no packet here! ");
+            //  printf(" no packet here! ");
         }
 
         /**************************************************************************
@@ -120,21 +138,58 @@ int main(){
 
         // Loads the packet data buffer with data receieved from the motor
         if(com.PeekPacket(&packet_data, &packet_length)){
-            printf("packet peeked");
+            // printf("packet peeked");
+        } else {
+            // printf(" didnt peek packet ");
         }
-
+        if(com.DropPacket()){
+            // printf("packet Dropped");
+        } else if(com.DropPacket()==0) {
+            // printf("no packet to drop");
+        } else {
+            printf("failue");
+        }
         // Loads data into the temperature client
-        templeft.ReadMsg(packet_data, packet_length);
+        angleft.ReadMsg(packet_data, packet_length);
 
-        com.DropPacket();
+        
 
         // Reads the data from the temperature client
-        float temperature = templeft.temp_.get_reply();
+        float langle = angleft.obs_angular_displacement_.get_reply();
+
+        
+
+        printf("Motor Angle: %.3f  MotorVolt %.3f \r", langle ,zero);//Packet_data: %u bytes in read buffer: %u packet length: %u, packet_data, length, packet_length
 
 
-
-        printf("Temperature: %f  Packet_data: %u  cbuf: %u  bytes in read buffer: %u packet length: %u       \r", temperature, *packet_data, *cbuf, length, packet_length);
     }
 
     return 0;
+}
+
+// Get time stamp in milliseconds.
+uint64_t millis()
+{
+    uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    return ms; 
+}
+
+// Get time stamp in microseconds.
+uint64_t micros()
+{
+    uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    return us; 
+}
+
+// Get time stamp in nanoseconds.
+uint64_t nanos()
+{
+    uint64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    return ns; 
 }
