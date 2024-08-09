@@ -232,10 +232,6 @@ void ArduinoIoTCloudTCP::update()
 #if defined (ARDUINO_ARCH_SAMD) || defined (ARDUINO_ARCH_MBED)
   watchdog_reset();
 #endif
-
-  /* Check for new data from the MQTT client. */
-  if (_mqttClient.connected())
-    _mqttClient.poll();
 }
 
 int ArduinoIoTCloudTCP::connected()
@@ -267,7 +263,8 @@ ArduinoIoTCloudTCP::State ArduinoIoTCloudTCP::handle_ConnectPhy()
 
 ArduinoIoTCloudTCP::State ArduinoIoTCloudTCP::handle_SyncTime()
 {
-  if (TimeServiceClass::isTimeValid(getTime()))
+  /* If available force network time sync when connecting or reconnecting */
+  if (_time_service.sync())
   {
     DEBUG_VERBOSE("ArduinoIoTCloudTCP::%s internal clock configured to posix timestamp %d", __FUNCTION__, getTime());
     return State::ConnectMqttBroker;
@@ -283,9 +280,6 @@ ArduinoIoTCloudTCP::State ArduinoIoTCloudTCP::handle_ConnectMqttBroker()
   {
     /* Subscribe to message topic to receive commands */
     _mqttClient.subscribe(_messageTopicIn);
-
-    /* Reconfigure timers for next state */
-    _connection_attempt.begin(AIOT_CONFIG_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms, AIOT_CONFIG_MAX_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms);
 
     DEBUG_VERBOSE("ArduinoIoTCloudTCP::%s connected to %s:%d", __FUNCTION__, _brokerAddress.c_str(), _brokerPort);
     return State::Connected;
@@ -306,6 +300,9 @@ ArduinoIoTCloudTCP::State ArduinoIoTCloudTCP::handle_Connected()
   {
     return State::Disconnect;
   }
+
+  /* Check for new data from the MQTT client. */
+  _mqttClient.poll();
 
   /* Retransmit data in case there was a lost transaction due
    * to phy layer or MQTT connectivity loss.

@@ -97,7 +97,7 @@ void dmpDataReady() {
 int i = 0;
 int motordrive = 0;  /*change if want motors on or off*/
 int serialprint = 1; /*change to 1 if want telemetrics to print to serial*/
-int sdprint = 1;     /*change to 1 if want print to sd card*/
+int sdprint = 0;     /*change to 1 if want print to sd card*/
 //Balbot chassis
 float Ixb = 0.0003478;
 float Iyb = 0.0004134;
@@ -150,7 +150,12 @@ float ax = 0;
 float ay = 0;
 float FREQ = 200;
 float zero = 0;
+unsigned long starttime = 0;
+unsigned long imutime = 0;
+unsigned long motortime = 0;
 unsigned long time = 0;
+unsigned long timeend = 0;
+
 
 const int chipSelect = 4;
 IqSerial ser(Serial1);
@@ -163,8 +168,12 @@ PowerMonitorClient pwrl(1);
 MultiTurnAngleControlClient angr(0);
 MultiTurnAngleControlClient angl(1);
 
+File dataFile;
+
 uint32_t L1baud = 0;
 uint32_t R0baud = 0;
+
+
 
 void setup() {
   // Initialize serial and wait for port to open:
@@ -275,6 +284,11 @@ void setup() {
   ser.set(angl.ctrl_volts_, zero);
   ser.set(angr.ctrl_volts_, zero);
 
+  dataFile = SD.open("test.txt", FILE_WRITE);  // O_WRITE | O_CREAT
+  if (!dataFile) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
   delay(1000);
 }
 
@@ -289,37 +303,27 @@ void setup() {
 
 
 
-
-
-
-
-
-
-
-
-
-
 void loop() {
   // Your code here
-  time = micros();
+  starttime = micros();
   Serial.print("Start Loop Time: ");
-  Serial.println(time);
+  Serial.println(starttime);
 
   if (!dmpReady) return;
   // read a packet from FIFO
   if (i2cmpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {  // Get the Latest packet
-    // #ifdef OUTPUT_READABLE_QUATERNION
-    //     // display quaternion values in easy matrix form: w x y z
-    //     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
-    //     Serial.print(" quat\t");
-    //     Serial.print(q.w);
-    //     Serial.print("\t");
-    //     Serial.print(q.x);
-    //     Serial.print("\t");
-    //     Serial.print(q.y);
-    //     Serial.print("\t");
-    //     Serial.print(q.z);
-    // #endif
+                                                     // #ifdef OUTPUT_READABLE_QUATERNION
+                                                     //     // display quaternion values in easy matrix form: w x y z
+                                                     //     i2cmpu.dmpGetQuaternion(&q, fifoBuffer);
+                                                     //     Serial.print(" quat\t");
+                                                     //     Serial.print(q.w);
+                                                     //     Serial.print("\t");
+                                                     //     Serial.print(q.x);
+                                                     //     Serial.print("\t");
+                                                     //     Serial.print(q.y);
+                                                     //     Serial.print("\t");
+                                                     //     Serial.print(q.z);
+                                                     // #endif
 
     // #ifdef OUTPUT_READABLE_EULER
     //     // display Euler angles in degrees
@@ -398,9 +402,9 @@ void loop() {
     //     teapotPacket[11]++;  // packetCount, loops at 0xFF on purpose
     // #endif
   }
-  time = micros();
+  imutime = micros();
   Serial.print("IMU get time: ");
-  Serial.println(time);
+  Serial.println(imutime);
 
   //ser.get(pwrr.volts_, voltager);
   // Serial.print(" | Motor R Supp Volt: ");
@@ -435,9 +439,9 @@ void loop() {
   // ser.get(motl.motor_emf_calc_, lemf);
   //   // Serial.print(lemf);
 
-  time = micros();
+  motortime = micros();
   Serial.print("get motor data time: ");
-  Serial.println(time);
+  Serial.println(motortime);
   kt = .053;
 
   /*states (q1 and dq1 not used)*/
@@ -475,9 +479,9 @@ void loop() {
     Serial.print(dq5, 3);
     Serial.println(" ");
     /*time*/
-    time = micros();
-    Serial.print("Print States time: ");
-    Serial.println(time);
+    // time = micros();
+    // Serial.print("Print States time: ");
+    // Serial.println(time);
   }
 
 
@@ -502,15 +506,15 @@ void loop() {
   taul = (t18 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.45E-3 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.45E-3 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t18 * (Iywl + t8);
   taur = t17 * (Ixwl + Iyb + Iywr + bmass * 1.69E-2 + wmass * 3.38E-2) - t17 * (Iywr + t8) + gr * l * t7 * sin(q3);
 
-  time = micros();
-  Serial.print("Controller code time: ");
-  Serial.println(time);
+  // time = micros();
+  // Serial.print("Controller code time: ");
+  // Serial.println(time);
 
 
   /*Torque to Voltage path */
   currl = taul / kt;
   currr = taur / kt;
- /*print current commanded from controller codd*/
+  /*print current commanded from controller codd*/
   if (serialprint != 0) {
     Serial.print(" c L: ");
     Serial.print(currl, 3);
@@ -536,19 +540,6 @@ void loop() {
   Motorcommandl = lemf + (lmotorR * currl);
   Motorcommandr = remf + (rmotorR * currr);
 
-
-  /*use voltage limiter if pulling supply voltage from the motors only only*/
-  // if (Motorcommandl > voltagel) {
-  //   Motorcommandl = voltagel;
-  // } else if (Motorcommandl < -voltagel) {
-  //   Motorcommandl = -voltagel;
-  // }
-  // if (Motorcommandr > voltager) {
-  //   Motorcommandr = voltager;
-  // } else if (Motorcommandr < -voltager) {
-  //   Motorcommandr = -voltager;
-  // }
-
   /*set motors to desired voltage */
 
   if (abs(q2) > .20 | abs(q3) > .20) {
@@ -562,9 +553,9 @@ void loop() {
     ser.set(motl.drive_spin_volts_, Motorcommandl);
   }
 
-  time = micros();
-  Serial.print("Voltage to motor driver time: ");
-  Serial.print(time);
+  // time = micros();
+  // Serial.print("Voltage to motor driver time: ");
+  // Serial.print(time);
 
   if (serialprint != 0) {
     Serial.print(" V L: ");
@@ -576,14 +567,17 @@ void loop() {
 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
+  time = micros();
   if (sdprint != 0) {
-    File dataFile = SD.open("datalog.txt", FILE_WRITE);
-
     // if the file is available, write to it: CSV format
     if (dataFile) {
-      if (i = 0) {
+
+      Serial.print(i);
+      Serial.println(dataFile);
+      if (i == 0) {
 
         dataFile.print("Time");
+        Serial.println("Time");
         dataFile.print(", q1");
         dataFile.print(", q2");
         dataFile.print(", q3");
@@ -594,17 +588,16 @@ void loop() {
         dataFile.print(", dq3");
         dataFile.print(", dq4");
         dataFile.print(", dq5");
-        // dataFile.print(" | Motor R Supp Volt: ");
-        // dataFile.print(" | Motor L Supp Volt: ");
-        // dataFile.print(" | Motor R Velo: ");
-        // dataFile.print(" | Motor L Velo: ");
-        dataFile.print(", Volt L Comm: ");
-        dataFile.print(", Volt R Comm: ");
-        // dataFile.print(", Date: ");
-        // dataFile.print(", Time: ");
-        dataFile.println(" ");
+        // // dataFile.print(" | Motor R Supp Volt: ");
+        // // dataFile.print(" | Motor L Supp Volt: ");
+        // // dataFile.print(" | Motor R Velo: ");
+        // // dataFile.print(" | Motor L Velo: ");
+        // dataFile.print(", Volt L Comm: ");
+        // dataFile.print(", Volt R Comm: ");
+        // dataFile.println(" ");
       }
-      dataFile.print(time);
+      dataFile.print(time / 1000);
+      Serial.println(time / 1000);
       dataFile.print(", ");
       dataFile.print(q1);
       dataFile.print(", ");
@@ -625,7 +618,7 @@ void loop() {
       dataFile.print(dq4);
       dataFile.print(", ");
       dataFile.print(dq5);
-      dataFile.print(", ");
+      // dataFile.print(", ");
       // dataFile.print(voltager);
       // dataFile.print(", ");
       // dataFile.print(voltagel);
@@ -634,29 +627,18 @@ void loop() {
       // dataFile.print(", ");
       // dataFile.print(velocityl);
       // dataFile.print(", ");
-      dataFile.print(Motorcommandl);
-      dataFile.print(", ");
-      dataFile.print(Motorcommandr);
+      // dataFile.print(Motorcommandl);
       // dataFile.print(", ");
-      // dataFile.print(rtc.getDay());
-      // dataFile.print("/");
-      // dataFile.print(rtc.getMonth());
-      // dataFile.print("/");
-      // dataFile.print(rtc.getYear());
+      // dataFile.print(Motorcommandr);
       // dataFile.print(", ");
-      // dataFile.print(rtc.getHours());
-      // dataFile.print(":");
-      // dataFile.print(rtc.getMinutes());
-      // dataFile.print(":");
-      // dataFile.print(rtc.getSeconds());
 
       dataFile.println(" ");
 
-      dataFile.close();
+      // dataFile.close();
       i = i + 1;
-      time = micros();
-      Serial.print(" SD write time: ");
-      Serial.println(time);
     }
   }
+  timeend = micros();
+  Serial.print(" SD write time: ");
+  Serial.println(timeend - time);
 }

@@ -33,11 +33,24 @@ _registered(false) {
 }
 
 void ArduinoCloudDevice::begin() {
-  _attachAttempt.begin(AIOT_CONFIG_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms,
-                       AIOT_CONFIG_MAX_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms);
+  _attachAttempt.begin(AIOT_CONFIG_THING_ID_REQUEST_RETRY_DELAY_ms,
+                       AIOT_CONFIG_MAX_THING_ID_REQUEST_RETRY_DELAY_ms);
 }
 
 void ArduinoCloudDevice::update() {
+  handleMessage(nullptr);
+}
+
+int ArduinoCloudDevice::connected() {
+  return _state != State::Disconnected ? 1 : 0;
+}
+
+void ArduinoCloudDevice::handleMessage(Message *m) {
+  _command = UnknownCmdId;
+  if (m != nullptr) {
+    _command = m->id;
+  }
+
   /* Run through the state machine. */
   State nextState = _state;
   switch (_state) {
@@ -80,21 +93,10 @@ void ArduinoCloudDevice::update() {
   _state = nextState;
 }
 
-int ArduinoCloudDevice::connected() {
-  return _state != State::Disconnected ? 1 : 0;
-}
-
-void ArduinoCloudDevice::handleMessage(Message *m) {
-  _command = UnknownCmdId;
-  if (m != nullptr) {
-    _command = m->id;
-  }
-}
-
 ArduinoCloudDevice::State ArduinoCloudDevice::handleInit() {
   /* Reset attempt struct for the nex retry after disconnection */
-  _attachAttempt.begin(AIOT_CONFIG_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms,
-                       AIOT_CONFIG_MAX_DEVICE_TOPIC_SUBSCRIBE_RETRY_DELAY_ms);
+  _attachAttempt.begin(AIOT_CONFIG_THING_ID_REQUEST_RETRY_DELAY_ms,
+                       AIOT_CONFIG_MAX_THING_ID_REQUEST_RETRY_DELAY_ms);
 
   _attached = false;
   _registered = false;
@@ -120,7 +122,7 @@ ArduinoCloudDevice::State ArduinoCloudDevice::handleSendCapabilities() {
 
 ArduinoCloudDevice::State ArduinoCloudDevice::handleConnected() {
   /* Max retry than disconnect */
-  if (_attachAttempt.getRetryCount() > AIOT_CONFIG_DEVICE_TOPIC_MAX_RETRY_CNT) {
+  if (_attachAttempt.getRetryCount() > AIOT_CONFIG_THING_ID_REQUEST_MAX_RETRY_CNT) {
     return State::Disconnected;
   }
 
@@ -130,8 +132,10 @@ ArduinoCloudDevice::State ArduinoCloudDevice::handleConnected() {
        * counter, but recompute delay.
        * Wait: 4s -> 80s -> 160s -> 320s -> 640s -> 1280s -> 1280s ...
        */
-      _attachAttempt.reconfigure(AIOT_CONFIG_DEVICE_TOPIC_ATTACH_RETRY_DELAY_ms,
-                                 AIOT_CONFIG_MAX_DEVICE_TOPIC_ATTACH_RETRY_DELAY_ms);
+      _attachAttempt.reconfigure(AIOT_CONFIG_THING_ID_REQUEST_RETRY_DELAY_ms *
+                                 AIOT_CONFIG_DEVICE_REGISTERED_RETRY_DELAY_k,
+                                 AIOT_CONFIG_MAX_THING_ID_REQUEST_RETRY_DELAY_ms *
+                                 AIOT_CONFIG_MAX_DEVICE_REGISTERED_RETRY_DELAY_k);
     }
     return State::SendCapabilities;
   }
