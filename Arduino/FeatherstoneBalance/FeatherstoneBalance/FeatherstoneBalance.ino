@@ -149,7 +149,7 @@ int16_t z;
 float ax = 0;
 float ay = 0;
 float FREQ = 200;
-float zero = 0;
+float zero = 0.5; //drive .5 volts
 unsigned long starttime = 0;
 unsigned long imutime = 0;
 unsigned long motortime = 0;
@@ -416,18 +416,18 @@ void loop() {
 
   // Get the velocity. If a response was received...
 
-  ser.get(angr.obs_angular_velocity_, dq5);
+  // ser.get(angr.obs_angular_velocity_, dq5);
 
-  // Serial.print(" | Motor R Velo: ");
-  // Serial.print(velocityr);
+  // // Serial.print(" | Motor R Velo: ");
+  // // Serial.print(velocityr);
 
-  ser.get(angl.obs_angular_velocity_, dq4);
-  // Display the reported velocity
+  // ser.get(angl.obs_angular_velocity_, dq4);
+  // // Display the reported velocity
 
-  // Serial.print(" | Motor L Velo: ");
-  // Serial.print(velocityl);
-  ser.get(angl.obs_angular_displacement_, q4);
-  ser.get(angr.obs_angular_displacement_, q5);
+  // // Serial.print(" | Motor L Velo: ");
+  // // Serial.print(velocityl);
+  // ser.get(angl.obs_angular_displacement_, q4);
+  // ser.get(angr.obs_angular_displacement_, q5);
 
   /*get params*/
   // ser.get(motr.motor_R_ohm_, rmotorR);
