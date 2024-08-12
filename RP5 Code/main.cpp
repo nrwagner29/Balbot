@@ -1,6 +1,7 @@
 // Main Code to run BALBOT as an inverted pendulum with the wheels at a 90 deg angle
 // #include <list>
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include "lib/brushless_drive_client.hpp"
 #include "lib/client_communication.hpp"
@@ -123,7 +124,7 @@ void dmpDataReady()
 }
 
 using namespace LibSerial;
-
+using namespace std;
 uint64_t micros();
 uint64_t nanos();
 uint64_t millis();
@@ -217,6 +218,10 @@ int main()
     MultiTurnAngleControlClient rightwheel(0);
     BrushlessDriveClient rightdrive(0);
 
+    // open a file
+    //  Create and open a text file
+    ofstream MyFile("filename.txt");
+
     // float Acc_x, Acc_y, Acc_z;
     // float Gyro_x, Gyro_y, Gyro_z;
     // float Ax = 0, Ay = 0, Az = 0;
@@ -276,8 +281,6 @@ int main()
     {
         /*START LOOP HERE*/
 
-
-
         if (!dmpReady)
             return;
         // read a packet from FIFO
@@ -287,13 +290,13 @@ int main()
           // display quaternion values in easy matrix form: w x y z
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             printf("quat\t");
-            printf("%.3f",q.w);
+            printf("%.3f", q.w);
             printf("\t");
-            printf("%.3f",q.x);
+            printf("%.3f", q.x);
             printf("\t");
-            printf("%.3f",q.y);
+            printf("%.3f", q.y);
             printf("\t");
-            printf("%.3f",q.z);
+            printf("%.3f", q.z);
 #endif
 
 #ifdef OUTPUT_READABLE_EULER
@@ -301,11 +304,11 @@ int main()
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetEuler(euler, &q);
             printf("euler\t");
-            printf("%.3f",euler[0] * 180 / M_PI);
+            printf("%.3f", euler[0] * 180 / M_PI);
             printf("\t");
-            printf("%.3f",euler[1] * 180 / M_PI);
+            printf("%.3f", euler[1] * 180 / M_PI);
             printf("\t");
-            printf("%.3f",euler[2] * 180 / M_PI);
+            printf("%.3f", euler[2] * 180 / M_PI);
 #endif
 
 #ifdef OUTPUT_READABLE_YAWPITCHROLL
@@ -314,11 +317,11 @@ int main()
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
             printf("ypr\t");
-            printf("%.3f",ypr[0] * 180 / M_PI);
+            printf("%.3f", ypr[0] * 180 / M_PI);
             printf("\t");
-            printf("%.3f",ypr[1] * 180 / M_PI);
+            printf("%.3f", ypr[1] * 180 / M_PI);
             printf("\t");
-            printf("%.3f",ypr[2] * 180 / M_PI);
+            printf("%.3f", ypr[2] * 180 / M_PI);
 #endif
 
 #ifdef OUTPUT_READABLE_REALACCEL
@@ -328,11 +331,11 @@ int main()
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
             printf("areal\t");
-            printf("%.3f",aaReal.x);
+            printf("%.3f", aaReal.x);
             printf("\t");
-            printf("%.3f",aaReal.y);
+            printf("%.3f", aaReal.y);
             printf("\t");
-            printf("%.3f",aaReal.z);
+            printf("%.3f", aaReal.z);
 #endif
 
 #ifdef OUTPUT_READABLE_WORLDACCEL
@@ -344,11 +347,11 @@ int main()
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
             mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
             printf("aworld\t");
-            printf("%.3f",aaWorld.x);
+            printf("%.3f", aaWorld.x);
             printf("\t");
-            printf("%.3f",aaWorld.y);
+            printf("%.3f", aaWorld.y);
             printf("\t");
-            printf("%.3f",aaWorld.z);
+            printf("%.3f", aaWorld.z);
 #endif
 
 #ifdef OUTPUT_TEAPOT
@@ -361,7 +364,7 @@ int main()
             teapotPacket[7] = fifoBuffer[9];
             teapotPacket[8] = fifoBuffer[12];
             teapotPacket[9] = fifoBuffer[13];
-            printf("%.14f",teapotPacket);
+            printf("%.14f", teapotPacket);
             teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
 #endif
         }
@@ -545,9 +548,12 @@ int main()
         if (recorddata == 1)
         {
             // save states to file here
+            // Write to the file
+            MyFile << "Files can be tricky, but it is fun enough!";
         }
     }
-
+    // Close the file
+    MyFile.close();
     return 0;
 }
 
