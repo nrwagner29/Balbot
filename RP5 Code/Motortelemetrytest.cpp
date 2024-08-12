@@ -71,7 +71,7 @@ int main(){
         // obj/access   ( 0) get
         angleft.obs_angular_displacement_.get(com);
         zero = sin(.5*micros()/100000);
-        leftdrive.drive_spin_volts_.set(com, zero);
+        
 
         uint8_t packet_buf[64];
         uint8_t length = 8;
@@ -157,7 +157,8 @@ int main(){
         // Reads the data from the temperature client
         float langle = angleft.obs_angular_displacement_.get_reply();
 
-        
+        // Drive the motor via command voltage
+        leftdrive.drive_spin_volts_.set(com, zero);
 
         printf("Motor Angle: %.3f  MotorVolt %.3f \r", langle ,zero);//Packet_data: %u bytes in read buffer: %u packet length: %u, packet_data, length, packet_length
 
