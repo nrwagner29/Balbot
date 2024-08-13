@@ -41,7 +41,9 @@
 
 uint64_t micros();
 float zero = 0; // drive 0 volts
-
+float start = 0;
+float end = 0;
+float runtime = 0;
 using namespace LibSerial;
 
 int main(){
@@ -56,11 +58,11 @@ int main(){
 
     // Make a Temperature Estimator Client object with obj_id 1
 
-    MultiTurnAngleControlClient angleft(1);
-    BrushlessDriveClient leftdrive(1);
-
+    MultiTurnAngleControlClient angleft(0);
+    BrushlessDriveClient leftdrive(0);
+    
     while(true){
-
+        start = micros();
         /**********************************************************************
          *********************** Sending Get Command **************************
          *********************************************************************/
@@ -70,8 +72,9 @@ int main(){
         // subtype:     ( 0) temp
         // obj/access   ( 0) get
         angleft.obs_angular_displacement_.get(com);
-        zero = sin(.5*micros()/100000);
-        
+        zero = 1;//sin(.5*micros()/100000);
+
+        leftdrive.drive_spin_volts_.set(com, zero);
 
         uint8_t packet_buf[64];
         uint8_t length = 8;
@@ -85,7 +88,7 @@ int main(){
 
             // Send the get packet request to the motor
             my_serial_port.Write(string_buf);
-            printf("TX! ");
+            // printf("TX! ");
         }
 
         /**********************************************************************
@@ -123,7 +126,7 @@ int main(){
 
         // Transfer the buffer into the com interface
         if(com.SetRxBytes(cbuf, length)){
-            // printf(" packet available ");
+            printf(" packet available ");
         } else{
             //  printf(" no packet here! ");
         }
@@ -157,10 +160,11 @@ int main(){
         // Reads the data from the temperature client
         float langle = angleft.obs_angular_displacement_.get_reply();
 
-        // Drive the motor via command voltage
-        leftdrive.drive_spin_volts_.set(com, zero);
+        end = micros();
 
-        printf("Motor Angle: %.3f  MotorVolt %.3f \r", langle ,zero);//Packet_data: %u bytes in read buffer: %u packet length: %u, packet_data, length, packet_length
+        runtime = (end-start)/1000;
+
+        printf("Motor Angle: %.3f  MotorVolt %.3f loop time: %f sec \r", langle ,zero, end);//Packet_data: %u bytes in read buffer: %u packet length: %u, packet_data, length, packet_length
 
 
     }

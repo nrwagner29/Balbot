@@ -3,7 +3,7 @@ project(Balbot VERSION 0.1.0 LANGUAGES C CXX)
 
 #main.cpp
 
-add_executable(Balbot  Motortelemetrytest.cpp
+add_executable(Balbot  main.cpp
 lib/brushless_drive_client.hpp
 lib/client_communication.cpp
 lib/client_communication.hpp

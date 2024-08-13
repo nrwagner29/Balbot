@@ -36,9 +36,14 @@
 #include "lib/MPU6050_6Axis_MotionApps20.h"
 #include "lib/MPU6050.cpp"
 #include "lib/MPU6050.h"
-#include "I2Cdev.h"
-#include "I2Cdev.cpp"
-#include "helper_3dmath.h"
+#include "lib/I2Cdev.h"
+#include "lib/I2Cdev.cpp"
+#include "lib/helper_3dmath.h"
+#include "lib/wiringPi.h"
+#include "lib/wiringPiI2C.h"
+
+
+
 #define PI 3.14159265359
 // //WiringPi talkiking to IMU, Change to I2cDev for MPU
 // #define Device_Address 0x68 /*Device Address/Identifier for MPU6050*/
@@ -93,6 +98,9 @@
 
 bool blinkState = false;
 
+MPU6050 mpu;
+I2Cdev i2c;
+
 // MPU control/status vars
 bool dmpReady = false;  // set true if DMP init was successful
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
@@ -109,7 +117,7 @@ VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measuremen
 VectorFloat gravity; // [x, y, z]            gravity vector
 float euler[3];      // [psi, theta, phi]    Euler angle container
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
+VectorInt16 gyro;
 // packet structure for InvenSense teapot demo
 uint8_t teapotPacket[14] = {'$', 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, '\r', '\n'};
 
@@ -125,9 +133,9 @@ void dmpDataReady()
 
 using namespace LibSerial;
 using namespace std;
-uint64_t micros();
-uint64_t nanos();
-uint64_t millis();
+uint64_t microsec();
+uint64_t nanosec();
+uint64_t millisec();
 int fd;
 
 /*Balbot Parameters*/
@@ -173,8 +181,8 @@ float Tauright = 0;
 
 /*code commands*/
 float motordrive = 0; // set to 1 to drive motors
-float termprint = 0;  // set to 1 to print states to terminal
-float recorddata = 0; // set to 1 to save data to a file
+float termprint = 1;  // set to 1 to print states to terminal
+float recorddata = 1; // set to 1 to save data to a file
 
 // void MPU6050_Init()
 // {
@@ -183,6 +191,7 @@ float recorddata = 0; // set to 1 to save data to a file
 //     wiringPiI2CWriteReg8(fd, CONFIG, 0);        /* Write to Configuration register */
 //     wiringPiI2CWriteReg8(fd, GYRO_CONFIG, 24);  /* Write to Gyro Configuration register */
 //     wiringPiI2CWriteReg8(fd, INT_ENABLE, 0x01); /*Write to interrupt enable register */
+
 // }
 // short read_raw_data(int addr)
 // {
@@ -193,13 +202,13 @@ float recorddata = 0; // set to 1 to save data to a file
 //     return value;
 // }
 
-// void ms_delay(int val)
-// {
-//     int i, j;
-//     for (i = 0; i <= val; i++)
-//         for (j = 0; j < 1200; j++)
-//             ;
-// }
+void ms_delay(int val)
+{
+    int i, j;
+    for (i = 0; i <= val; i++)
+        for (j = 0; j < 1200; j++)
+            ;
+}
 
 int main()
 {
@@ -226,7 +235,8 @@ int main()
     // float Gyro_x, Gyro_y, Gyro_z;
     // float Ax = 0, Ay = 0, Az = 0;
     // float Gx = 0, Gy = 0, Gz = 0;
-    fd = wiringPiI2CSetup(Device_Address); /*Initializes I2C with device Address this is through wiringPi*/
+    // fd = wiringPiI2CSetup(Device_Address); /*Initializes I2C with device Address this is through wiringPi*/
+    i2c.initialize("/dev/i2c-1");
     // MPU6050_Init();                        /* Initializes MPU6050 , though we want to do it through i2cdev*/
     // initialize device
     printf("Initializing I2C devices...\n");
@@ -235,7 +245,7 @@ int main()
 
     // verify connection
     printf("Testing device connections...\n");
-    printf(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    printf("%f",mpu.testConnection());
 
     // wait for ready need to find c++ version not arduino
     // printf("\nSend any character to begin DMP programming and demo: "));
@@ -261,7 +271,7 @@ int main()
         mpu.CalibrateGyro(6);
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
-        printf(F("Enabling DMP..."));
+        printf("Enabling DMP...");
         mpu.setDMPEnabled(true);
         dmpReady = true;
 
@@ -281,8 +291,10 @@ int main()
     {
         /*START LOOP HERE*/
 
-        if (!dmpReady)
-            return;
+        if (!dmpReady){
+            return 0;
+        }
+            
         // read a packet from FIFO
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
         { // Get the Latest packet
@@ -454,7 +466,7 @@ int main()
         q1 = -ypr[0]; // radians
         q2 = ypr[1];
         q3 = ypr[2];
-        /* q4 and q5 defined above*/
+        /* q4 and q5 defined below*/
         dq1 = gyro.z / 16.4 / 180 * PI;  // radians
         dq2 = -gyro.y / 16.4 / 180 * PI; // radians
         dq3 = gyro.x / 16.4 / 180 * PI;  // radians
@@ -541,7 +553,7 @@ int main()
 
         if (termprint == 1)
         {
-            printf(" LMotor Command (v): %.3f RMotor Command (v): %.3f \r", leftvolt, rightvolt);
+            printf(" LMotor Command (v): %.3f RMotor Command (v): %.3f q4: %.3f q5:%.3f\n", leftvolt, rightvolt, q4, q5);
             // printf(states);
         }
 
@@ -558,7 +570,7 @@ int main()
 }
 
 // Get time stamp in milliseconds.
-uint64_t millis()
+uint64_t millisec()
 {
     uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                       std::chrono::high_resolution_clock::now().time_since_epoch())
@@ -567,7 +579,7 @@ uint64_t millis()
 }
 
 // Get time stamp in microseconds.
-uint64_t micros()
+uint64_t microsec()
 {
     uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
                       std::chrono::high_resolution_clock::now().time_since_epoch())
@@ -576,7 +588,7 @@ uint64_t micros()
 }
 
 // Get time stamp in nanoseconds.
-uint64_t nanos()
+uint64_t nanosec()
 {
     uint64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                       std::chrono::high_resolution_clock::now().time_since_epoch())
