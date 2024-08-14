@@ -3,6 +3,8 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <sys/time.h>
+#include <time.h>
 #include "lib/brushless_drive_client.hpp"
 #include "lib/client_communication.hpp"
 #include "lib/coil_temperature_estimator_client.hpp"
@@ -41,8 +43,6 @@
 #include "lib/helper_3dmath.h"
 #include "lib/wiringPi.h"
 #include "lib/wiringPiI2C.h"
-
-
 
 #define PI 3.14159265359
 // //WiringPi talkiking to IMU, Change to I2cDev for MPU
@@ -133,9 +133,6 @@ void dmpDataReady()
 
 using namespace LibSerial;
 using namespace std;
-uint64_t microsec();
-uint64_t nanosec();
-uint64_t millisec();
 int fd;
 
 /*Balbot Parameters*/
@@ -181,34 +178,30 @@ float Tauright = 0;
 
 /*code commands*/
 float motordrive = 0; // set to 1 to drive motors
-float termprint = 1;  // set to 1 to print states to terminal
-float recorddata = 1; // set to 1 to save data to a file
+float termprint = 0;  // set to 1 to print states to terminal
+float recorddata = 0; // set to 1 to save data to a file
+float timeprint = 1; // set to 1 to print time intervals of the code
 
-// void MPU6050_Init()
-// {
-//     wiringPiI2CWriteReg8(fd, SMPLRT_DIV, 0x07); /* Write to sample rate register */
-//     wiringPiI2CWriteReg8(fd, PWR_MGMT_1, 0x01); /* Write to power management register */
-//     wiringPiI2CWriteReg8(fd, CONFIG, 0);        /* Write to Configuration register */
-//     wiringPiI2CWriteReg8(fd, GYRO_CONFIG, 24);  /* Write to Gyro Configuration register */
-//     wiringPiI2CWriteReg8(fd, INT_ENABLE, 0x01); /*Write to interrupt enable register */
-
-// }
-// short read_raw_data(int addr)
-// {
-//     short high_byte, low_byte, value;
-//     high_byte = wiringPiI2CReadReg8(fd, addr);
-//     low_byte = wiringPiI2CReadReg8(fd, addr + 1);
-//     value = (high_byte << 8) | low_byte;
-//     return value;
-// }
-
-void ms_delay(int val)
-{
-    int i, j;
-    for (i = 0; i <= val; i++)
-        for (j = 0; j < 1200; j++)
-            ;
-}
+/*Time vars*/
+struct timeval startt, contrt, IMUt, motort, voltsett, printt, recordt, closet;
+float starttime = 0;
+float IMUtime = 0;
+float motorgettime = 0;
+float voltagesettime = 0;
+float printtime = 0;
+float datarecordtime = 0;
+float controllertime = 0;
+float closetime = 0;
+float oldstarttime = 0;
+float startT = 0;
+float IMUT = 0;
+float motorgetT = 0;
+float voltagesetT = 0;
+float printT = 0;
+float datarecordT = 0;
+float controllerT = 0;
+float closeT = 0;
+float totalT = 0;
 
 int main()
 {
@@ -223,35 +216,20 @@ int main()
 
     // Make a Temperature Estimator Client object with obj_id 0
     MultiTurnAngleControlClient leftwheel(1);
-    BrushlessDriveClient leftdrive(1);
     MultiTurnAngleControlClient rightwheel(0);
-    BrushlessDriveClient rightdrive(0);
 
     // open a file
     //  Create and open a text file
     ofstream MyFile("filename.txt");
 
-    // float Acc_x, Acc_y, Acc_z;
-    // float Gyro_x, Gyro_y, Gyro_z;
-    // float Ax = 0, Ay = 0, Az = 0;
-    // float Gx = 0, Gy = 0, Gz = 0;
-    // fd = wiringPiI2CSetup(Device_Address); /*Initializes I2C with device Address this is through wiringPi*/
-    i2c.initialize("/dev/i2c-1");
-    // MPU6050_Init();                        /* Initializes MPU6050 , though we want to do it through i2cdev*/
     // initialize device
     printf("Initializing I2C devices...\n");
+    i2c.initialize("/dev/i2c-1");
     mpu.initialize();
-    // pinMode(INTERRUPT_PIN, INPUT);
 
     // verify connection
     printf("Testing device connections...\n");
-    printf("%f",mpu.testConnection());
-
-    // wait for ready need to find c++ version not arduino
-    // printf("\nSend any character to begin DMP programming and demo: "));
-    // while (Serial.available() && Serial.read()); // empty buffer
-    // while (!Serial.available());                 // wait for data
-    // while (Serial.available() && Serial.read()); // empty buffer again
+    printf("%f", mpu.testConnection());
 
     // load and configure the DMP
     printf("Initializing DMP...");
@@ -286,15 +264,30 @@ int main()
         // (if it's going to break, usually the code will be 1)
         printf("DMP Initialization failed %u", devStatus);
     }
+    /*set motors to zero voltage*/
+    leftwheel.ctrl_volts_.set(com, zero);
+    rightwheel.ctrl_volts_.set(com, zero);
+
+
+
+
+
+
+
 
     while (true)
     {
         /*START LOOP HERE*/
+        /*timer start here*/
+       
+        gettimeofday(&startt, NULL);
+        starttime = startt.tv_usec;
 
-        if (!dmpReady){
+        if (!dmpReady)
+        {
             return 0;
         }
-            
+
         // read a packet from FIFO
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
         { // Get the Latest packet
@@ -328,12 +321,13 @@ int main()
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            printf("ypr\t");
-            printf("%.3f", ypr[0] * 180 / M_PI);
-            printf("\t");
-            printf("%.3f", ypr[1] * 180 / M_PI);
-            printf("\t");
-            printf("%.3f", ypr[2] * 180 / M_PI);
+            mpu.dmpGetGyro(&gyro, fifoBuffer);
+            // printf("ypr\t");
+            // printf("%.3f", ypr[0] * 180 / M_PI);
+            // printf("\t");
+            // printf("%.3f", ypr[1] * 180 / M_PI);
+            // printf("\t");
+            // printf("%.3f", ypr[2] * 180 / M_PI);
 #endif
 
 #ifdef OUTPUT_READABLE_REALACCEL
@@ -380,87 +374,51 @@ int main()
             teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
 #endif
         }
-
+        /*IMU timer*/
+        gettimeofday(&IMUt, NULL);
+        IMUtime = IMUt.tv_usec;
+  
         /**********************************************************************
          *********************** Sending Get Command **************************
          *********************************************************************/
-
-        /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
         leftwheel.obs_angular_displacement_.get(com);  // q4
         rightwheel.obs_angular_displacement_.get(com); // q5
         leftwheel.obs_angular_velocity_.get(com);      // dq4
         rightwheel.obs_angular_velocity_.get(com);     // dq5
-
         uint8_t packet_buf[64];
         uint8_t length = 8;
-
-        // Get the packet from the com interface and place it into the packet buffer
-        if (com.GetTxBytes(packet_buf, length))
+        if (com.GetTxBytes(packet_buf, length))// Get the packet from the com interface and place it into the packet buffer
         {
-
-            // C is a strong typed language -_-
-            // so we need to convert to a string buffer to interface with LibSerial
-            std::string string_buf((char *)packet_buf, length);
-
-            // Send the get packet request to the motor
-            my_serial_port.Write(string_buf);
+            std::string string_buf((char *)packet_buf, length);//C is a strong typed language -_- so we need to convert to a string buffer to interface with LibSerial
+            my_serial_port.Write(string_buf);// Send the get packet request to the motor
         }
-
         /**********************************************************************
          ************************** Receiving Temp Value **********************
          *********************************************************************/
-
-        // Need to wait for the Motor Controller to Respond
-        usleep(5000);
-
-        // Serial Receive Buffer
-        std::string read_buf;
-
-        // How many bytes are in the read buffer
-        length = my_serial_port.GetNumberOfBytesAvailable();
-
-        // Read the packet from Serial
-        my_serial_port.Read(read_buf, length);
-
-        // Again C is strongly types so we have to convert back to byte buffer
-        uint8_t *cbuf = (uint8_t *)read_buf.c_str();
-
-        // Transfer the buffer into the com interface
-        com.SetRxBytes(cbuf, length);
-
+        usleep(1750);// Need to wait for the Motor Controller to Respond
+        std::string read_buf;// Serial Receive Buffer
+        length = my_serial_port.GetNumberOfBytesAvailable();// How many bytes are in the read buffer
+        my_serial_port.Read(read_buf, length);// Read the packet from Serial
+        uint8_t *cbuf = (uint8_t *)read_buf.c_str();// Again C is strongly types so we have to convert back to byte buffer
+        com.SetRxBytes(cbuf, length);// Transfer the buffer into the com interface
         /**************************************************************************
         **************************  Reading the Value  ***************************
         *************************************************************************/
-
-        // Temporary Pointer to the packet data location
-        uint8_t *packet_data;
+        uint8_t *packet_data;// Temporary Pointer to the packet data location
         uint8_t packet_length;
-
-        // Loads the packet data buffer with data receieved from the motor
-        com.PeekPacket(&packet_data, &packet_length);
+        com.PeekPacket(&packet_data, &packet_length);// Loads the packet data buffer with data receieved from the motor
         com.DropPacket();
-
-        // Loads data into the temperature client
-        leftwheel.ReadMsg(packet_data, packet_length);
+        leftwheel.ReadMsg(packet_data, packet_length);// Loads data into the temperature client
         rightwheel.ReadMsg(packet_data, packet_length);
+        /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
+        q4 = leftwheel.obs_angular_displacement_.get_reply();
+        q5 = rightwheel.obs_angular_displacement_.get_reply();
+        dq4 = leftwheel.obs_angular_velocity_.get_reply();
+        dq5 = rightwheel.obs_angular_velocity_.get_reply();
 
-        // /*Read raw value of Accelerometer and gyroscope from MPU6050*/ This is all wiringPi code
-        // Acc_x = read_raw_data(ACCEL_XOUT_H);
-        // Acc_y = read_raw_data(ACCEL_YOUT_H);
-        // Acc_z = read_raw_data(ACCEL_ZOUT_H);
-
-        // Gyro_x = read_raw_data(GYRO_XOUT_H);
-        // Gyro_y = read_raw_data(GYRO_YOUT_H);
-        // Gyro_z = read_raw_data(GYRO_ZOUT_H);
-
-        // /* Divide raw value by sensitivity scale factor */
-        // Ax = Acc_x / 16384.0;
-        // Ay = Acc_y / 16384.0;
-        // Az = Acc_z / 16384.0;
-
-        // Gx = Gyro_x / 131;
-        // Gy = Gyro_y / 131;
-        // Gz = Gyro_z / 131;
+        /*Motor Communication timer*/
+        gettimeofday(&motort, NULL);
+        motorgettime = motort.tv_usec;
 
         /*states (q1 and dq1 not used)*/
         q1 = -ypr[0]; // radians
@@ -471,13 +429,7 @@ int main()
         dq2 = -gyro.y / 16.4 / 180 * PI; // radians
         dq3 = gyro.x / 16.4 / 180 * PI;  // radians
 
-        /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
-        q4 = leftwheel.obs_angular_displacement_.get_reply();
-        q5 = rightwheel.obs_angular_displacement_.get_reply();
-        dq4 = leftwheel.obs_angular_velocity_.get_reply();
-        dq5 = rightwheel.obs_angular_velocity_.get_reply();
         /*Controller code Here*/
-
         /*From MATLAB ccode (*recalculate*)*/
         float t2 = q3;
         float t4 = wmass * 2.0;
@@ -500,6 +452,10 @@ int main()
         Tauleft = (t18 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.45E-3 + t8 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.45E-3 + t6 * t8) + gr * l * t7 * sin(q2)) / t3 - t3 * t18 * (Iywl + t8);
         Tauright = t17 * (Ixwl + Iyb + Iywr + bmass * 1.69E-2 + wmass * 3.38E-2) - t17 * (Iywr + t8) + gr * l * t7 * sin(q3);
         /*End MATLAB ccode*/
+
+        /*Controller timer*/
+        gettimeofday(&contrt, NULL);
+        controllertime = contrt.tv_usec;
 
         /*torque to current to voltage command*/
         /*torque to current*/
@@ -535,26 +491,33 @@ int main()
         leftvolt = lemf + R * leftcurr;
         rightvolt = remf + R * rightcurr;
 
+        /*Motor commands here*/
         if (abs(q2) > .20 | abs(q3) > .20) // rads
         {                                  // motor stop for falling over
-            leftdrive.drive_brake_.set(com);
-            rightdrive.drive_brake_.set(com);
+            leftwheel.ctrl_brake_.set(com);
+            rightwheel.ctrl_brake_.set(com);
         }
         else if (motordrive == 1)
         { // Can the motors voltage command be sent from down here or before the TX call?
-            leftdrive.drive_spin_volts_.set(com, leftvolt);
-            rightdrive.drive_spin_volts_.set(com, rightvolt);
+            leftwheel.ctrl_volts_.set(com, leftvolt);
+            rightwheel.ctrl_volts_.set(com, rightvolt);
         }
         else if (motordrive == 0)
         {
-            leftdrive.drive_spin_volts_.set(com, zero);
-            rightdrive.drive_spin_volts_.set(com, zero);
+            leftwheel.ctrl_volts_.set(com, zero);
+            rightwheel.ctrl_volts_.set(com, zero);
         }
+
+        /*voltage set timer*/
+        gettimeofday(&voltsett, NULL);
+        voltagesettime = voltsett.tv_usec;
 
         if (termprint == 1)
         {
-            printf(" LMotor Command (v): %.3f RMotor Command (v): %.3f q4: %.3f q5:%.3f\n", leftvolt, rightvolt, q4, q5);
-            // printf(states);
+            printf(" LMotor volt: %.3f RMotor volt: %.3f q1: %.3f q2: %.3f q3:%.3f q4: %.3f q5:%.3f dq1: %.3f dq2: %.3f dq3:%.3f dq4: %.3f dq5:%.3f\n", leftvolt, rightvolt, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5);
+            /*printtimer timer*/
+            gettimeofday(&printt, NULL);
+            printtime = printt.tv_usec;
         }
 
         if (recorddata == 1)
@@ -562,36 +525,40 @@ int main()
             // save states to file here
             // Write to the file
             MyFile << "Files can be tricky, but it is fun enough!";
+            /*Record data timer*/
+            gettimeofday(&recordt, NULL);
+            datarecordtime = recordt.tv_usec;
+        }
+        /*time calcs*/
+        totalT = starttime-oldstarttime;
+        IMUT = IMUtime - starttime;
+        motorgetT = motorgettime - IMUtime;
+        controllerT = controllertime - motorgettime;
+        voltagesetT = voltagesettime - controllertime; 
+        oldstarttime = starttime;
+
+            if (termprint == 1)
+        {
+            printT = printtime - voltagesettime;
+        }
+
+        if (recorddata == 1 && termprint == 1)
+        {
+            datarecordT = datarecordtime - printtime;
+        }
+        else if (recorddata == 1 && termprint != 1)
+        {
+            datarecordT = datarecordtime - voltagesettime;
+        }
+         if (timeprint == 1)
+        {
+        printf("Time to run: %.3fms | IMU time: %.3fms | Motor get time: %.3fms | controller time: %.3fms | voltage set time: %.3fms | Terminal Print time: %.3fms | record data time: %.3fms\r", totalT / 1000, IMUT/1000, motorgetT/1000, controllerT/1000, voltagesetT/1000, printT/1000,datarecordT/1000);
         }
     }
     // Close the file
     MyFile.close();
+    leftwheel.ctrl_brake_.set(com);
+    rightwheel.ctrl_brake_.set(com);
+
     return 0;
-}
-
-// Get time stamp in milliseconds.
-uint64_t millisec()
-{
-    uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      std::chrono::high_resolution_clock::now().time_since_epoch())
-                      .count();
-    return ms;
-}
-
-// Get time stamp in microseconds.
-uint64_t microsec()
-{
-    uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::high_resolution_clock::now().time_since_epoch())
-                      .count();
-    return us;
-}
-
-// Get time stamp in nanoseconds.
-uint64_t nanosec()
-{
-    uint64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                      std::chrono::high_resolution_clock::now().time_since_epoch())
-                      .count();
-    return ns;
 }
