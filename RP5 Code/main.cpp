@@ -29,7 +29,6 @@
 #include "lib/SerialStream.h"
 #include "lib/multi_turn_angle_control_client.hpp"
 #include <string>
-#include <iostream>
 #include "unistd.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -161,6 +160,16 @@ float dq2 = 0;
 float dq3 = 0;
 float dq4 = 0;
 float dq5 = 0;
+float q1a[10000]; // approx 90sec of storage with 115Hz // 18000 for 90 sec of storage at 200Hz
+float q2a[10000];
+float q3a[10000];
+float q4a[10000];
+float q5a[10000];
+float dq1a[10000];
+float dq2a[10000];
+float dq3a[10000];
+float dq4a[10000];
+float dq5a[10000];
 
 /*code vars*/
 float currlimit = 0;
@@ -172,15 +181,20 @@ float remf = 0;
 float R = 0;
 float leftvolt = 0;
 float rightvolt = 0;
+float leftvolta[10000];
+float rightvolta[10000];
 float zero = 0;
 float Tauleft = 0;
 float Tauright = 0;
+int x = 0; // loop counter
+int i = 0; // savedata counter
+int buttonpress = 0;
 
 /*code commands*/
 float motordrive = 0; // set to 1 to drive motors
-float termprint = 0;  // set to 1 to print states to terminal
-float recorddata = 0; // set to 1 to save data to a file
-float timeprint = 1; // set to 1 to print time intervals of the code
+float termprint = 1;  // set to 1 to print states to terminal
+float recorddata = 1; // set to 1 to save data to a file
+float timeprint = 0;  // set to 1 to print time intervals of the code
 
 /*Time vars*/
 struct timeval startt, contrt, IMUt, motort, voltsett, printt, recordt, closet;
@@ -220,7 +234,8 @@ int main()
 
     // open a file
     //  Create and open a text file
-    ofstream MyFile("filename.txt");
+    ofstream myfile;
+    myfile.open("/home/neilrw2/filename.txt");
 
     // initialize device
     printf("Initializing I2C devices...\n");
@@ -267,19 +282,17 @@ int main()
     /*set motors to zero voltage*/
     leftwheel.ctrl_volts_.set(com, zero);
     rightwheel.ctrl_volts_.set(com, zero);
+       /*set motors to zero angle*/
+    leftwheel.obs_angular_displacement_.set(com, zero);
+    rightwheel.obs_angular_displacement_.set(com, zero);
 
 
-
-
-
-
-
-
-    while (true)
+    while (buttonpress == 0)
     {
+
         /*START LOOP HERE*/
         /*timer start here*/
-       
+
         gettimeofday(&startt, NULL);
         starttime = startt.tv_usec;
 
@@ -377,7 +390,7 @@ int main()
         /*IMU timer*/
         gettimeofday(&IMUt, NULL);
         IMUtime = IMUt.tv_usec;
-  
+
         /**********************************************************************
          *********************** Sending Get Command **************************
          *********************************************************************/
@@ -387,34 +400,38 @@ int main()
         rightwheel.obs_angular_velocity_.get(com);     // dq5
         uint8_t packet_buf[64];
         uint8_t length = 8;
-        if (com.GetTxBytes(packet_buf, length))// Get the packet from the com interface and place it into the packet buffer
+        if (com.GetTxBytes(packet_buf, length)) // Get the packet from the com interface and place it into the packet buffer
         {
-            std::string string_buf((char *)packet_buf, length);//C is a strong typed language -_- so we need to convert to a string buffer to interface with LibSerial
-            my_serial_port.Write(string_buf);// Send the get packet request to the motor
+            std::string string_buf((char *)packet_buf, length); // C is a strong typed language -_- so we need to convert to a string buffer to interface with LibSerial
+            my_serial_port.Write(string_buf);                   // Send the get packet request to the motor
         }
         /**********************************************************************
          ************************** Receiving Temp Value **********************
          *********************************************************************/
-        usleep(1750);// Need to wait for the Motor Controller to Respond
-        std::string read_buf;// Serial Receive Buffer
-        length = my_serial_port.GetNumberOfBytesAvailable();// How many bytes are in the read buffer
-        my_serial_port.Read(read_buf, length);// Read the packet from Serial
-        uint8_t *cbuf = (uint8_t *)read_buf.c_str();// Again C is strongly types so we have to convert back to byte buffer
-        com.SetRxBytes(cbuf, length);// Transfer the buffer into the com interface
+        usleep(2500);                                        // Need to wait for the Motor Controller to Respond
+        std::string read_buf;                                // Serial Receive Buffer
+        length = my_serial_port.GetNumberOfBytesAvailable(); // How many bytes are in the read buffer
+        my_serial_port.Read(read_buf, length);               // Read the packet from Serial
+        uint8_t *cbuf = (uint8_t *)read_buf.c_str();         // Again C is strongly types so we have to convert back to byte buffer
+        com.SetRxBytes(cbuf, length);                        // Transfer the buffer into the com interface
         /**************************************************************************
         **************************  Reading the Value  ***************************
         *************************************************************************/
-        uint8_t *packet_data;// Temporary Pointer to the packet data location
+        uint8_t *packet_data; // Temporary Pointer to the packet data location
         uint8_t packet_length;
-        com.PeekPacket(&packet_data, &packet_length);// Loads the packet data buffer with data receieved from the motor
+        com.PeekPacket(&packet_data, &packet_length); // Loads the packet data buffer with data receieved from the motor
         com.DropPacket();
-        leftwheel.ReadMsg(packet_data, packet_length);// Loads data into the temperature client
+        leftwheel.ReadMsg(packet_data, packet_length); // Loads data into the temperature client
         rightwheel.ReadMsg(packet_data, packet_length);
         /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
         q4 = leftwheel.obs_angular_displacement_.get_reply();
+        q4a[x] = q4;
         q5 = rightwheel.obs_angular_displacement_.get_reply();
+        q5a[x] = q5;
         dq4 = leftwheel.obs_angular_velocity_.get_reply();
+        dq4a[x] = dq4;
         dq5 = rightwheel.obs_angular_velocity_.get_reply();
+        dq5a[x] = dq5;
 
         /*Motor Communication timer*/
         gettimeofday(&motort, NULL);
@@ -422,12 +439,19 @@ int main()
 
         /*states (q1 and dq1 not used)*/
         q1 = -ypr[0]; // radians
+        q1a[x] = q1;
         q2 = ypr[1];
+        q2a[x] = q2;
         q3 = ypr[2];
+        q3a[x] = q3;
+
         /* q4 and q5 defined below*/
-        dq1 = gyro.z / 16.4 / 180 * PI;  // radians
+        dq1 = gyro.z / 16.4 / 180 * PI; // radians
+        dq1a[x] = dq1;
         dq2 = -gyro.y / 16.4 / 180 * PI; // radians
-        dq3 = gyro.x / 16.4 / 180 * PI;  // radians
+        dq2a[x] = dq2;
+        dq3 = gyro.x / 16.4 / 180 * PI; // radians
+        dq3a[x] = dq3;
 
         /*Controller code Here*/
         /*From MATLAB ccode (*recalculate*)*/
@@ -489,8 +513,9 @@ int main()
         /*current to voltage*/
         R = 4.7; // omhs
         leftvolt = lemf + R * leftcurr;
+        leftvolta[x] = leftvolt;
         rightvolt = remf + R * rightcurr;
-
+        rightvolta[x] = rightvolt;
         /*Motor commands here*/
         if (abs(q2) > .20 | abs(q3) > .20) // rads
         {                                  // motor stop for falling over
@@ -518,47 +543,57 @@ int main()
             /*printtimer timer*/
             gettimeofday(&printt, NULL);
             printtime = printt.tv_usec;
-        }
-
-        if (recorddata == 1)
-        {
-            // save states to file here
-            // Write to the file
-            MyFile << "Files can be tricky, but it is fun enough!";
-            /*Record data timer*/
-            gettimeofday(&recordt, NULL);
-            datarecordtime = recordt.tv_usec;
-        }
-        /*time calcs*/
-        totalT = starttime-oldstarttime;
-        IMUT = IMUtime - starttime;
-        motorgetT = motorgettime - IMUtime;
-        controllerT = controllertime - motorgettime;
-        voltagesetT = voltagesettime - controllertime; 
-        oldstarttime = starttime;
-
-            if (termprint == 1)
-        {
             printT = printtime - voltagesettime;
         }
 
-        if (recorddata == 1 && termprint == 1)
+        /*time calcs*/
+        totalT = starttime - oldstarttime;
+        IMUT = IMUtime - starttime;
+        motorgetT = motorgettime - IMUtime;
+        controllerT = controllertime - motorgettime;
+        voltagesetT = voltagesettime - controllertime;
+        oldstarttime = starttime;
+
+        if (timeprint == 1)
         {
-            datarecordT = datarecordtime - printtime;
+            printf("Time to run: %.3fms | IMU time: %.3fms | Motor get time: %.3fms | controller time: %.3fms | voltage set time: %.3fms | Terminal Print time: %.3fms \t\r", totalT / 1000, IMUT / 1000, motorgetT / 1000, controllerT / 1000, voltagesetT / 1000, printT / 1000);
         }
-        else if (recorddata == 1 && termprint != 1)
+
+        /*exiter on the while loop*/
+        if (x == 999)//this is on a loop timer, want to change on key press to do this
         {
-            datarecordT = datarecordtime - voltagesettime;
+            
+
+            /*THIS IS END OF CODE here are the closing statements to safely exit code and shutdown motors/IMU */
+            leftwheel.ctrl_brake_.set(com);
+            rightwheel.ctrl_brake_.set(com);
+
+            /*save data array to file in csv*/
+            if (recorddata == 1)
+            {
+                
+                if (myfile.is_open())
+                {
+                    // save states to file here
+                    // Write to the file
+                    myfile << "q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5, LeftMotorVoltage, RightMotorVoltage";
+                    printf( "File Printed\n");
+                    while (i <= x)
+                    {
+                        i++;
+
+                        myfile << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << "S, " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i] << "\n";
+                        // cout << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i]<< "\n";
+                    }
+                }
+            }
+
+            myfile.close(); // Close the file
+            buttonpress = 1;
         }
-         if (timeprint == 1)
-        {
-        printf("Time to run: %.3fms | IMU time: %.3fms | Motor get time: %.3fms | controller time: %.3fms | voltage set time: %.3fms | Terminal Print time: %.3fms | record data time: %.3fms\r", totalT / 1000, IMUT/1000, motorgetT/1000, controllerT/1000, voltagesetT/1000, printT/1000,datarecordT/1000);
-        }
+
+        x++;
     }
-    // Close the file
-    MyFile.close();
-    leftwheel.ctrl_brake_.set(com);
-    rightwheel.ctrl_brake_.set(com);
 
     return 0;
 }
