@@ -417,11 +417,12 @@ int main()
         IMUtime = IMUt.tv_usec;
 
         /*states (q1 and dq1 not used)*/
-        q1 = -ypr[0]; // radians
+        //from quaternion
+        q1 = atan((2*(q.w*q.z - q.x*q.y))/(1-2*(q.z*q.z + q.x*q.x)));// radians
+        q2 = asin((2*(q.w*q.x + q.z*q.y)));
+        q3 = atan((2*(q.w*q.y - q.z*q.x))/(1-2*(q.x*q.x + q.y*q.y)));
         q1a[x] = q1;
-        q2 = ypr[1];
         q2a[x] = q2;
-        q3 = ypr[2];
         q3a[x] = q3;
 
         /* q4 and q5 defined below after motor response*/
