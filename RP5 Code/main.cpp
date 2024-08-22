@@ -95,6 +95,7 @@
 // format used for the InvenSense teapot demo
 // #define OUTPUT_TEAPOT
 
+#pragma region // start code and initalize all variables and classes for communication
 bool blinkState = false;
 
 MPU6050 mpu;
@@ -135,19 +136,20 @@ using namespace std;
 int fd;
 
 /*Balbot Parameters*/
-float Ixb = 0.0003478;
-float Iyb = 0.0004134;
-float Izb = 0.0004908;
-float Ixwl = 0.00017645;
-float Iywl = 0.00017645;
-float Izwl = 0.000352;
-float Ixwr = 0.00017645;
-float Iywr = 0.00017645;
-float Izwr = 0.000352;
-float bmass = .436;
-float wmass = .110;
+float Ixb = 0.00012628;
+float Iyb = 0.00028395;
+float Izb = 0.0003798;
+float Ixwl = 0.0002695;
+float Iywl = 0.0002695;
+float Izwl = 0.000539;
+float Ixwr = 0.0002695;
+float Iywr = 0.0002695;
+float Izwr = 0.000539;
+float bmass = .259; //.457 w battery
+float wmass = .111;
 float gr = 9.81;
-float l = .1;
+float l = .13817;
+float m = bmass + 2 * wmass;
 
 /*Balbot states*/
 float q1 = 0;
@@ -176,6 +178,8 @@ float currlimit = 0;
 float kt = 0;
 float leftcurr = 0;
 float rightcurr = 0;
+float lcurr = 0;
+float rcurr = 0;
 float lemf = 0;
 float remf = 0;
 float R = 0;
@@ -183,7 +187,7 @@ float leftvolt = 0;
 float rightvolt = 0;
 float leftvolta[100000];
 float rightvolta[100000];
-float zero = 0;
+float zero = 1;
 float Tauleft = 0;
 float Tauright = 0;
 int x = 0; // loop counter
@@ -191,7 +195,7 @@ int i = 0; // savedata counter
 int buttonpress = 0;
 
 /*code commands*/
-float motordrive = 0; // set to 1 to drive motors
+float motordrive = 1; // set to 1 to drive motors
 float termprint = 1;  // set to 1 to print states to terminal
 float recorddata = 1; // set to 1 to save data to a file
 float timeprint = 0;  // set to 1 to print time intervals of the code
@@ -221,10 +225,78 @@ float motorsendtime = 0;
 float motorsendT = 0;
 float totalmotorT = 0;
 
+/*Controller Vars*/
+float tcx = 0.12169;
+float tcy = 0.12239;
+float gwx = -0.17527;
+float gwy = -0.17327;
+float H22 = 0.0136;
+float H24 = 0.0024;
+float H42 = 0.0024;
+float H44 = 0.0024;
+float H33 = 0.0138;
+float H35 = 0.0024;
+float H53 = 0.0024;
+float H55 = 0.0024;
+float Yx1 = 0;
+float Yx2 = 0;
+float Yy1 = 0;
+float Yy2 = 0;
+float Mx = 0;
+float Mdx = 0;
+float Mddx = 0;
+float f = .25;
+float g1x = 0;
+float g2x = 0;
+float g3x = 0;
+float g4x = 0;
+float a3x = 0;
+float a2x = 0;
+float a1x = 0;
+float a0x = 0;
+float kddx = 0;
+float kdx = 0;
+float kmx = 0;
+float kqx = 0;
+float mu1x = 0;
+float mu2x = 0;
+float alphax1 = 0;
+float alphax2 = 0;
+float qcx = 0;
+float dqcx = 0;
+float ddqcx = 0;
+float ux = 0;
+float Mdddx = 0;
+float My = 0;
+float Mdy = 0;
+float Mddy = 0;
+float g1y = 0;
+float g2y = 0;
+float g3y = 0;
+float g4y = 0;
+float a3y = 0;
+float a2y = 0;
+float a1y = 0;
+float a0y = 0;
+float kddy = 0;
+float kdy = 0;
+float kmy = 0;
+float kqy = 0;
+float mu1y = 0;
+float mu2y = 0;
+float alphay1 = 0;
+float alphay2 = 0;
+float qcy = 0;
+float dqcy = 0;
+float ddqcy = 0;
+float uy = 0;
+float Mdddy = 0;
+
+#pragma endregion
 
 int main()
 {
-
+#pragma region // start up, initialization of ports, motors, and IMU
     // Setup the serial interface
     SerialPort my_serial_port("/dev/ttyAMA10");
     my_serial_port.SetBaudRate(BaudRate::BAUD_921600);
@@ -291,6 +363,8 @@ int main()
     leftwheel.obs_angular_displacement_.set(com, zero);
     rightwheel.obs_angular_displacement_.set(com, zero);
 
+#pragma endregion
+
     while (buttonpress == 0)
     {
         /*START LOOP HERE*/
@@ -298,7 +372,9 @@ int main()
         gettimeofday(&startt, NULL);
         starttime = startt.tv_usec;
 
-       /**********************************************************************
+#pragma region // IMU and Motor Communications and receiving data
+
+        /**********************************************************************
          *********************** Sending Get Command **************************
          *********************************************************************/
         leftwheel.obs_angular_displacement_.get(com);  // q4
@@ -321,7 +397,7 @@ int main()
         /**********************************************************************
          ************************** Receiving Values **********************
          *********************************************************************/
-         // Need to wait for the Motor Controller to Respond
+        // Need to wait for the Motor Controller to Respond
 
         if (!dmpReady)
         {
@@ -417,10 +493,10 @@ int main()
         IMUtime = IMUt.tv_usec;
 
         /*states (q1 and dq1 not used)*/
-        //from quaternion
-        q1 = atan((2*(q.w*q.z - q.x*q.y))/(1-2*(q.z*q.z + q.x*q.x)));// radians
-        q2 = asin((2*(q.w*q.x + q.z*q.y)));
-        q3 = atan((2*(q.w*q.y - q.z*q.x))/(1-2*(q.x*q.x + q.y*q.y)));
+        // from quaternion
+        q1 = atan((2 * (q.w * q.z - q.x * q.y)) / (1 - 2 * (q.z * q.z + q.x * q.x))); // radians
+        q2 = asin((2 * (q.w * q.x + q.z * q.y)));
+        q3 = atan((2 * (q.w * q.y - q.z * q.x)) / (1 - 2 * (q.x * q.x + q.y * q.y)));
         q1a[x] = q1;
         q2a[x] = q2;
         q3a[x] = q3;
@@ -432,7 +508,7 @@ int main()
         dq2a[x] = dq2;
         dq3 = gyro.x / 16.4 / 180 * PI; // radians
         dq3a[x] = dq3;
- 
+
         std::string read_buf;                                // Serial Receive Buffer
         length = my_serial_port.GetNumberOfBytesAvailable(); // How many bytes are in the read buffer
         my_serial_port.Read(read_buf, length);               // Read the packet from Serial
@@ -442,15 +518,15 @@ int main()
         **************************  Reading the Value  ***************************
         *************************************************************************/
 
-        if(com.PeekPacket(&packet_data, &packet_length)){// Loads the packet data buffer with data receieved from the motor
-        leftwheel.ReadMsg(packet_data, packet_length); // Loads data into the temperature client
-        rightwheel.ReadMsg(packet_data, packet_length);
-        com.DropPacket();
-        printf("!");
-        x++;
+        if (com.PeekPacket(&packet_data, &packet_length))
+        {                                                  // Loads the packet data buffer with data receieved from the motor
+            leftwheel.ReadMsg(packet_data, packet_length); // Loads data into the temperature client
+            rightwheel.ReadMsg(packet_data, packet_length);
+            com.DropPacket();
+            printf("!");
+            x++;
         }
-        
-       
+
         /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
         q4 = leftwheel.obs_angular_displacement_.get_reply();
         q4a[x] = q4;
@@ -465,40 +541,140 @@ int main()
         gettimeofday(&motort, NULL);
         motorgettime = motort.tv_usec;
 
+#pragma endregion
+
+#pragma region // Controller code and torque command
+        ////////////////////////
         /*Controller code Here*/
-        /*From MATLAB ccode (*recalculate*)*/
-        float t2 = q3;
-        float t4 = wmass * 2.0;
-        float t8 = q3 * 1.189149697475401E+2;
-        float t9 = q2 * 1.199641144518069E+2;
-        float t10 = q5 * 9.010851487501317E-1;
-        float t11 = q4 * 9.177937453718946E-1;
-        float t12 = wmass * 1.78623225E-2;
-        float t13 = dq3 * 2.222248647904258E+1;
-        float t14 = dq2 * 2.230524933343801E+1;
-        float t15 = dq4 * 8.437080976593504E-1;
-        float t16 = dq5 * 8.323297792399134E-1;
-        float t3 = cos(t2);
-        float t5 = t2 * 2.0;
-        float t7 = bmass + t4;
-        float t17 = t9 + t11 + t14 + t15;
-        float t18 = t8 + t10 + t13 + t16;
-        float t6 = cos(t5);
-        /*torque output of controller here*/
-        Tauleft = (t17 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.93116125E-3 + t12 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.93116125E-3 + t6 * t12) + gr * l * t7 * sin(q2)) / t3 - t3 * t17 * (Iywl + t12);
-        Tauright = t18 * (Ixwl + Iyb + Iywr + bmass * 1.78623225E-2 + wmass * 3.5724645E-2) - t18 * (Iywr + t12) + gr * l * t7 * sin(q3);
-        /*End MATLAB ccode*/
+        ////////////////////////
+        // /*From MATLAB ccode (*recalculate*)*/
+        // float t2 = q3;
+        // float t4 = wmass * 2.0;
+        // float t8 = q3 * 1.189149697475401E+2;
+        // float t9 = q2 * 1.199641144518069E+2;
+        // float t10 = q5 * 9.010851487501317E-1;
+        // float t11 = q4 * 9.177937453718946E-1;
+        // float t12 = wmass * 1.78623225E-2;
+        // float t13 = dq3 * 2.222248647904258E+1;
+        // float t14 = dq2 * 2.230524933343801E+1;
+        // float t15 = dq4 * 8.437080976593504E-1;
+        // float t16 = dq5 * 8.323297792399134E-1;
+        // float t3 = cos(t2);
+        // float t5 = t2 * 2.0;
+        // float t7 = bmass + t4;
+        // float t17 = t9 + t11 + t14 + t15;
+        // float t18 = t8 + t10 + t13 + t16;
+        // float t6 = cos(t5);
+        // /*torque output of controller here*/
+        // Tauleft = (t17 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.93116125E-3 + t12 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.93116125E-3 + t6 * t12) + gr * l * t7 * sin(q2)) / t3 - t3 * t17 * (Iywl + t12);
+        // Tauright = t18 * (Ixwl + Iyb + Iywr + bmass * 1.78623225E-2 + wmass * 3.5724645E-2) - t18 * (Iywr + t12) + gr * l * t7 * sin(q3);
+        // /*End MATLAB ccode*/
+
+        // mass matrix calcs
+
+        // featherstone control law x (q2)
+        Yx1 = -1 / (tcx * tcx * gwx);
+        Yx2 = 1 / (gwx);
+
+        Mx = tcx * tcx * (dq2 - gwx * dq4);
+        Mdx = q2;
+        Mddx = dq2;
+
+        f = .25; // pole factor (larger to increase mag of poles)
+
+        // selection of poles
+        g1x = -1 / tcx * f;
+        g2x = -1 / tcx * f;
+        g3x = -1 / tcx * f;
+        g4x = -10 * f;
+
+        a3x = -g1x - g2x - g3x - g4x;
+        a2x = g1x * g2x + g1x * g3x + g1x * g4x + g2x * g3x + g2x * g4x + g3x * g4x;
+        a1x = -g1x * g2x * g3x - g1x * g2x * g4x - g1x * g3x * g4x - g2x * g3x * g4x;
+        a0x = g1x * g2x * g3x * g4x;
+
+        kddx = -a3x;
+        kdx = -a2x + a0x * Yx2 / Yx1;
+        kmx = -a1x;
+        kqx = 0;//-a0x / Yx1;
+
+        // location of zeros
+        mu1x = g2x * 100;
+        mu2x = g3x * 100;
+
+        alphax1 = -(mu1x + mu2x) / (mu1x * mu2x);
+        alphax2 = 1 / (mu1x * mu2x);
+
+        // qc are commanded values of q4
+        qcx = 0;
+        dqcx = 0;
+        ddqcx = 0;
+
+        ux = qcx + alphax1 * dqcx + alphax2 * ddqcx;
+
+        Mdddx = (kddx * Mddx + kdx * Mdx + kmx * Mx + kqx * (q4 - ux));
+
+        Tauleft = H42 * Mdddx + H44 * (m * l * gr * sin(q2) - H22 * Mdddx) / H24;
+
+        // featherstone control law y (q3)
+        Yy1 = -1 / (tcy * tcy * gwy);
+        Yy2 = 1 / (gwy);
+
+        My = tcy * tcy * (dq3 - gwy * dq5);
+        Mdy = q3;
+        Mddy = dq3;
+
+        // selection of poles
+        g1y = -1 / tcy * f;
+        g2y = -1 / tcy * f;
+        g3y = -1 / tcy * f;
+        g4y = -10 * f;
+
+        a3y = -g1y - g2y - g3y - g4y;
+        a2y = g1y * g2y + g1y * g3y + g1y * g4y + g2y * g3y + g2y * g4y + g3y * g4y;
+        a1y = -g1y * g2y * g3y - g1y * g2y * g4y - g1y * g3y * g4y - g2y * g3y * g4y;
+        a0y = g1y * g2y * g3y * g4y;
+
+        kddy = -a3y;
+        kdy = -a2y + a0y * Yy2 / Yy1;
+        kmy = -a1y;
+        kqy = 0;//-a0y / Yy1;
+
+        // location of zeros
+        mu1y = g2y;
+        mu2y = g3y;
+
+        alphay1 = -(mu1y + mu2y) / (mu1y * mu2y);
+        alphay2 = 1 / (mu1y * mu2y);
+
+        // qc are commanded values of q5
+        qcy = 0;
+        dqcy = 0;
+        ddqcy = 0;
+
+        uy = qcy + alphay1 * dqcy + alphay2 * ddqcy;
+
+        Mdddy = (kddy * Mddy + kdy * Mdy + kmy * My + kqy * (q5 - uy));
+
+        Tauright = H53 * Mdddy + H55 * (m * l * gr * sin(q3) - H33 * Mdddy) / H35;
 
         /*Controller timer*/
         gettimeofday(&contrt, NULL);
         controllertime = contrt.tv_usec;
+        //////////////////
+        /*end Controller*/
+        //////////////////
 
+#pragma endregion
+
+#pragma region // torque to voltage command, current limiter and voltage command to motors + fall detection
         /*torque to current to voltage command*/
         /*torque to current*/
         kt = 0.053;                // torque constant
         leftcurr = Tauleft / kt;   // amps
         rightcurr = Tauright / kt; // amps
-
+        rcurr = rightcurr;
+        lcurr = leftcurr;
         /*current limiter*/
         currlimit = 5; // AMPS
         if (leftcurr > currlimit)
@@ -549,9 +725,12 @@ int main()
         gettimeofday(&voltsett, NULL);
         voltagesettime = voltsett.tv_usec;
 
+#pragma endregion
+
+#pragma region // terminal print, time calculations, data storage and offload, time print
         if (termprint == 1)
         {
-            printf(" LMotor volt: %.3f RMotor volt: %.3f q1: %.3f q2: %.3f q3:%.3f q4: %.3f q5:%.3f dq1: %.3f dq2: %.3f dq3:%.3f dq4: %.3f dq5:%.3f\n", leftvolt, rightvolt, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5);
+            printf(" LMotor curr: %.3f \tRMotor curr: %.3f \tLMotor volt: %.3f \tRMotor volt: %.3f \tq1: %.3f \tq2: %.3f \tq3:%.3f \tq4: %.3f \tq5:%.3f \tdq1: %.3f \tdq2: %.3f \tdq3:%.3f \tdq4: %.3f \tdq5:%.3f\n", lcurr, rcurr, leftvolt, rightvolt, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5);
             /*printtimer timer*/
             gettimeofday(&printt, NULL);
             printtime = printt.tv_usec;
@@ -561,7 +740,7 @@ int main()
         /*time calcs*/
         totalT = starttime - oldstarttime;
         startTa[x] = starttime;
-        IMUT =  IMUtime - motorsendtime ;
+        IMUT = IMUtime - motorsendtime;
         motorsendT = motorsendtime - starttime;
         motorgetT = motorgettime - IMUtime;
         controllerT = controllertime - motorgettime;
@@ -575,7 +754,7 @@ int main()
         }
 
         /*exiter on the while loop*/
-        if (x == 999) // this is on a loop timer, want to change on key press to do this
+        if (x == 9999) // this is on a loop timer, want to change on key press to do this
         {
 
             /*THIS IS END OF CODE here are the closing statements to safely exit code and shutdown motors/IMU */
@@ -595,7 +774,8 @@ int main()
                     while (i < x)
                     {
                         i++;
-
+                        leftwheel.ctrl_brake_.set(com);
+                        rightwheel.ctrl_brake_.set(com);
                         myfile << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i] << "\n";
                         // cout << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i]<< "\n";
                     }
@@ -605,7 +785,7 @@ int main()
             myfile.close(); // Close the file
             buttonpress = 1;
         }
-
+#pragma endregion
     }
 
     return 0;
