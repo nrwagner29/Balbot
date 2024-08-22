@@ -187,18 +187,24 @@ float leftvolt = 0;
 float rightvolt = 0;
 float leftvolta[100000];
 float rightvolta[100000];
-float zero = 1;
+float zero = 0;
 float Tauleft = 0;
 float Tauright = 0;
 int x = 0; // loop counter
 int i = 0; // savedata counter
 int buttonpress = 0;
+int packet = 0;
+string trial;
+string day;
+string month;
+string year;
+string filename;
 
 /*code commands*/
-float motordrive = 1; // set to 1 to drive motors
+float motordrive = 0; // set to 1 to drive motors
 float termprint = 1;  // set to 1 to print states to terminal
 float recorddata = 1; // set to 1 to save data to a file
-float timeprint = 0;  // set to 1 to print time intervals of the code
+float timeprint = 1;  // set to 1 to print time intervals of the code
 
 /*Time vars*/
 struct timeval startt, contrt, IMUt, motorsendt, motort, voltsett, printt, recordt, closet;
@@ -312,7 +318,18 @@ int main()
     // open a file
     //  Create and open a text file
     ofstream myfile;
-    myfile.open("/home/neilrw2/filename.txt");
+    cout << "enter trial number";
+    cin >> trial;
+    cout << "enter date\n";
+    cout <<  "day:\n";
+    cin >> day;
+    cout << "month:\n";
+    cin >> month;
+    cout << "year:\n";
+    cin >> year;
+    filename = "/home/neilrw2/trial_" + trial + "--" + day + "-" + month + "-" + year  + ".csv";
+    cout << filename;
+    myfile.open(filename);
 
     // initialize device
     printf("Initializing I2C devices...\n");
@@ -373,31 +390,6 @@ int main()
         starttime = startt.tv_usec;
 
 #pragma region // IMU and Motor Communications and receiving data
-
-        /**********************************************************************
-         *********************** Sending Get Command **************************
-         *********************************************************************/
-        leftwheel.obs_angular_displacement_.get(com);  // q4
-        rightwheel.obs_angular_displacement_.get(com); // q5
-        leftwheel.obs_angular_velocity_.get(com);      // dq4
-        rightwheel.obs_angular_velocity_.get(com);     // dq5
-        uint8_t packet_buf[64];
-        uint8_t length = 8;
-        uint8_t *packet_data; // Temporary Pointer to the packet data location
-        uint8_t packet_length;
-        if (com.GetTxBytes(packet_buf, length)) // Get the packet from the com interface and place it into the packet buffer
-        {
-            std::string string_buf((char *)packet_buf, length); // C is a strong typed language -_- so we need to convert to a string buffer to interface with LibSerial
-            my_serial_port.Write(string_buf);                   // Send the get packet request to the motor
-        }
-        /*timer start here*/
-        gettimeofday(&motorsendt, NULL);
-        motorsendtime = motorsendt.tv_usec;
-
-        /**********************************************************************
-         ************************** Receiving Values **********************
-         *********************************************************************/
-        // Need to wait for the Motor Controller to Respond
 
         if (!dmpReady)
         {
@@ -509,24 +501,53 @@ int main()
         dq3 = gyro.x / 16.4 / 180 * PI; // radians
         dq3a[x] = dq3;
 
-        std::string read_buf;                                // Serial Receive Buffer
-        length = my_serial_port.GetNumberOfBytesAvailable(); // How many bytes are in the read buffer
-        my_serial_port.Read(read_buf, length);               // Read the packet from Serial
-        uint8_t *cbuf = (uint8_t *)read_buf.c_str();         // Again C is strongly types so we have to convert back to byte buffer
-        com.SetRxBytes(cbuf, length);                        // Transfer the buffer into the com interface
-        /**************************************************************************
-        **************************  Reading the Value  ***************************
-        *************************************************************************/
+        /**********************************************************************
+         *********************** Sending Get Command **************************
+         *********************************************************************/
+        uint8_t packet_buf[64];
+        uint8_t length = 8;
+        uint8_t *packet_data; // Temporary Pointer to the packet data location
+        uint8_t packet_length;
+        /*timer start here*/
+        gettimeofday(&motorsendt, NULL);
+        motorsendtime = motorsendt.tv_usec;
 
-        if (com.PeekPacket(&packet_data, &packet_length))
+        while (packet == 0)
         {                                                  // Loads the packet data buffer with data receieved from the motor
-            leftwheel.ReadMsg(packet_data, packet_length); // Loads data into the temperature client
-            rightwheel.ReadMsg(packet_data, packet_length);
-            com.DropPacket();
-            printf("!");
-            x++;
-        }
+            leftwheel.obs_angular_displacement_.get(com);  // q4
+            rightwheel.obs_angular_displacement_.get(com); // q5
+            leftwheel.obs_angular_velocity_.get(com);      // dq4
+            rightwheel.obs_angular_velocity_.get(com);     // dq5
 
+            if (com.GetTxBytes(packet_buf, length)) // Get the packet from the com interface and place it into the packet buffer
+            {
+                std::string string_buf((char *)packet_buf, length); // C is a strong typed language -_- so we need to convert to a string buffer to interface with LibSerial
+                my_serial_port.Write(string_buf);                   // Send the get packet request to the motor
+            }
+
+            /**********************************************************************
+             ************************** Receiving Values **********************
+             *********************************************************************/
+            // Need to wait for the Motor Controller to Respond
+
+            std::string read_buf;                                // Serial Receive Buffer
+            length = my_serial_port.GetNumberOfBytesAvailable(); // How many bytes are in the read buffer
+            my_serial_port.Read(read_buf, length);               // Read the packet from Serial
+            uint8_t *cbuf = (uint8_t *)read_buf.c_str();         // Again C is strongly types so we have to convert back to byte buffer
+            com.SetRxBytes(cbuf, length);                        // Transfer the buffer into the com interface
+
+            /**************************************************************************
+            **************************  Reading the Value  ***************************
+            *************************************************************************/
+
+            packet = com.PeekPacket(&packet_data, &packet_length);
+            // cout << packet << "\n";
+        }
+        packet = 0;
+        leftwheel.ReadMsg(packet_data, packet_length); // Loads data into the temperature client
+        rightwheel.ReadMsg(packet_data, packet_length);
+        com.DropPacket();
+        x++;
         /*PUT IMU TO STATES CODE HERE (ALSO DMP)*/
         q4 = leftwheel.obs_angular_displacement_.get_reply();
         q4a[x] = q4;
@@ -596,7 +617,7 @@ int main()
         kddx = -a3x;
         kdx = -a2x + a0x * Yx2 / Yx1;
         kmx = -a1x;
-        kqx = 0;//-a0x / Yx1;
+        kqx = 0; //-a0x / Yx1;
 
         // location of zeros
         mu1x = g2x * 100;
@@ -638,7 +659,7 @@ int main()
         kddy = -a3y;
         kdy = -a2y + a0y * Yy2 / Yy1;
         kmy = -a1y;
-        kqy = 0;//-a0y / Yy1;
+        kqy = 0; //-a0y / Yy1;
 
         // location of zeros
         mu1y = g2y;
@@ -740,21 +761,21 @@ int main()
         /*time calcs*/
         totalT = starttime - oldstarttime;
         startTa[x] = starttime;
-        IMUT = IMUtime - motorsendtime;
-        motorsendT = motorsendtime - starttime;
-        motorgetT = motorgettime - IMUtime;
+        IMUT = IMUtime - starttime;
+        motorsendT = motorsendtime - IMUtime;
+        motorgetT = motorgettime - motorsendtime;
         controllerT = controllertime - motorgettime;
         voltagesetT = voltagesettime - controllertime;
-        totalmotorT = motorgettime - starttime;
+        
         oldstarttime = starttime;
 
         if (timeprint == 1)
         {
-            printf("Time to run: %.3fms | Motor send time: %.3fms | IMU time: %.3fms | Motor get time: %.3fms | controller time: %.3fms | voltage set time: %.3fms | Terminal Print time: %.3fms | Motor total time: %.3fms \t\n", totalT / 1000, motorsendT / 1000, IMUT / 1000, motorgetT / 1000, controllerT / 1000, voltagesetT / 1000, printT / 1000, totalmotorT / 1000);
+            printf("Time to run: %.3fms \t| Motor send time: %.3fms \t| IMU time: %.3fms \t| Motor get time: %.3fms \t| controller time: %.3fms \t| voltage set time: %.3fms \t| Terminal Print time: %.3fms\t\n", totalT / 1000, motorsendT / 1000, IMUT / 1000, motorgetT / 1000, controllerT / 1000, voltagesetT / 1000, printT / 1000);
         }
 
         /*exiter on the while loop*/
-        if (x == 9999) // this is on a loop timer, want to change on key press to do this
+        if (x == 9999) // this is on a loop timer, want to change on key press to do this size of txt file based on x for amount of rows
         {
 
             /*THIS IS END OF CODE here are the closing statements to safely exit code and shutdown motors/IMU */
