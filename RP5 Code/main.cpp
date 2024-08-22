@@ -320,15 +320,15 @@ int main()
     ofstream myfile;
     cout << "enter trial number";
     cin >> trial;
-    cout << "enter date\n";
-    cout <<  "day:\n";
+    cout << "enter date: ";
+    cout <<  "\nday: ";
     cin >> day;
-    cout << "month:\n";
+    cout << "\nmonth: ";
     cin >> month;
-    cout << "year:\n";
+    cout << "\nyear: ";
     cin >> year;
     filename = "/home/neilrw2/trial_" + trial + "--" + day + "-" + month + "-" + year  + ".csv";
-    cout << filename;
+    cout << "\n" << filename;
     myfile.open(filename);
 
     // initialize device
