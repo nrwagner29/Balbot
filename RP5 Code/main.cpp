@@ -201,10 +201,10 @@ string year;
 string filename;
 
 /*code commands*/
-float motordrive = 0; // set to 1 to drive motors
+float motordrive = 1; // set to 1 to drive motors
 float termprint = 1;  // set to 1 to print states to terminal
 float recorddata = 1; // set to 1 to save data to a file
-float timeprint = 1;  // set to 1 to print time intervals of the code
+float timeprint = 0;  // set to 1 to print time intervals of the code
 
 /*Time vars*/
 struct timeval startt, contrt, IMUt, motorsendt, motort, voltsett, printt, recordt, closet;
