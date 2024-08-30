@@ -716,8 +716,8 @@ int main()
         }
 
         /*Get EMF from speed calculation*/
-        lemf = kt * dq4; // lwheel velocity times back emf constant, kt to produce the back emf
-        remf = kt * dq5;
+        lemf = kt * dq4 * 60/PI; // lwheel velocity times back emf constant, kt to produce the back emf
+        remf = kt * dq5 * 60/PI; 
 
         /*current to voltage*/
         R = 4.7; // omhs
