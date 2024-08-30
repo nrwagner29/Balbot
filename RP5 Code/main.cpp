@@ -200,11 +200,6 @@ string month;
 string year;
 string filename;
 
-/*code commands*/
-float motordrive = 1; // set to 1 to drive motors
-float termprint = 1;  // set to 1 to print states to terminal
-float recorddata = 1; // set to 1 to save data to a file
-float timeprint = 0;  // set to 1 to print time intervals of the code
 
 /*Time vars*/
 struct timeval startt, contrt, IMUt, motorsendt, motort, voltsett, printt, recordt, closet;
@@ -298,6 +293,13 @@ float ddqcy = 0;
 float uy = 0;
 float Mdddy = 0;
 
+
+/*code commands*/
+float motordrive = 1; // set to 1 to drive motors
+float termprint = 1;  // set to 1 to print states to terminal
+float recorddata = 1; // set to 1 to save data to a file
+float timeprint = 0;  // set to 1 to print time intervals of the code
+
 #pragma endregion
 
 int main()
@@ -321,13 +323,13 @@ int main()
     cout << "enter trial number";
     cin >> trial;
     cout << "enter date: ";
-    cout <<  "\nday: ";
+    cout <<  "day: ";
     cin >> day;
-    cout << "\nmonth: ";
+    cout << "month: ";
     cin >> month;
-    cout << "\nyear: ";
+    cout << "year: ";
     cin >> year;
-    filename = "/home/neilrw2/trial_" + trial + "--" + day + "-" + month + "-" + year  + ".csv";
+    filename = "/home/neilrw2/trial_" + trial + "--" + year + "-" + month + "-" + day + ".csv";
     cout << "\n" << filename;
     myfile.open(filename);
 
@@ -496,7 +498,7 @@ int main()
         /* q4 and q5 defined below after motor response*/
         dq1 = gyro.z / 16.4 / 180 * PI; // radians
         dq1a[x] = dq1;
-        dq2 = -gyro.y / 16.4 / 180 * PI; // radians
+        dq2 = gyro.y / 16.4 / 180 * PI; // radians
         dq2a[x] = dq2;
         dq3 = gyro.x / 16.4 / 180 * PI; // radians
         dq3a[x] = dq3;
@@ -594,90 +596,103 @@ int main()
         // mass matrix calcs
 
         // featherstone control law x (q2)
-        Yx1 = -1 / (tcx * tcx * gwx);
-        Yx2 = 1 / (gwx);
+        // Yx1 = -1 / (tcx * tcx * gwx);
+        // Yx2 = 1 / (gwx);
 
-        Mx = tcx * tcx * (dq2 - gwx * dq4);
-        Mdx = q2;
-        Mddx = dq2;
+        // Mx = tcx * tcx * (dq2 - gwx * dq4);
+        // Mdx = q2;
+        // Mddx = dq2;
 
-        f = .25; // pole factor (larger to increase mag of poles)
+        // f = .25; // pole factor (larger to increase mag of poles)
 
-        // selection of poles
-        g1x = -1 / tcx * f;
-        g2x = -1 / tcx * f;
-        g3x = -1 / tcx * f;
-        g4x = -10 * f;
+        // // selection of poles
+        // g1x = -1 / tcx * f;
+        // g2x = -1 / tcx * f;
+        // g3x = -1 / tcx * f;
+        // g4x = -10 * f;
 
-        a3x = -g1x - g2x - g3x - g4x;
-        a2x = g1x * g2x + g1x * g3x + g1x * g4x + g2x * g3x + g2x * g4x + g3x * g4x;
-        a1x = -g1x * g2x * g3x - g1x * g2x * g4x - g1x * g3x * g4x - g2x * g3x * g4x;
-        a0x = g1x * g2x * g3x * g4x;
+        // a3x = -g1x - g2x - g3x - g4x;
+        // a2x = g1x * g2x + g1x * g3x + g1x * g4x + g2x * g3x + g2x * g4x + g3x * g4x;
+        // a1x = -g1x * g2x * g3x - g1x * g2x * g4x - g1x * g3x * g4x - g2x * g3x * g4x;
+        // a0x = g1x * g2x * g3x * g4x;
 
-        kddx = -a3x;
-        kdx = -a2x + a0x * Yx2 / Yx1;
-        kmx = -a1x;
-        kqx = 0; //-a0x / Yx1;
+        // kddx = -a3x;
+        // kdx = -a2x + a0x * Yx2 / Yx1;
+        // kmx = -a1x;
+        // kqx = 0; //-a0x / Yx1;
 
-        // location of zeros
-        mu1x = g2x * 100;
-        mu2x = g3x * 100;
+        // // location of zeros
+        // mu1x = g2x * 100;
+        // mu2x = g3x * 100;
 
-        alphax1 = -(mu1x + mu2x) / (mu1x * mu2x);
-        alphax2 = 1 / (mu1x * mu2x);
+        // alphax1 = -(mu1x + mu2x) / (mu1x * mu2x);
+        // alphax2 = 1 / (mu1x * mu2x);
 
-        // qc are commanded values of q4
-        qcx = 0;
-        dqcx = 0;
-        ddqcx = 0;
+        // // qc are commanded values of q4
+        // qcx = 0;
+        // dqcx = 0;
+        // ddqcx = 0;
 
-        ux = qcx + alphax1 * dqcx + alphax2 * ddqcx;
+        // ux = qcx + alphax1 * dqcx + alphax2 * ddqcx;
 
-        Mdddx = (kddx * Mddx + kdx * Mdx + kmx * Mx + kqx * (q4 - ux));
+        // Mdddx = (kddx * Mddx + kdx * Mdx + kmx * Mx + kqx * (q4 - ux));
 
-        Tauleft = H42 * Mdddx + H44 * (m * l * gr * sin(q2) - H22 * Mdddx) / H24;
+        // Tauleft = H42 * Mdddx + H44 * (m * l * gr * sin(q2) - H22 * Mdddx) / H24;
 
-        // featherstone control law y (q3)
-        Yy1 = -1 / (tcy * tcy * gwy);
-        Yy2 = 1 / (gwy);
+        // // featherstone control law y (q3)
+        // Yy1 = -1 / (tcy * tcy * gwy);
+        // Yy2 = 1 / (gwy);
 
-        My = tcy * tcy * (dq3 - gwy * dq5);
-        Mdy = q3;
-        Mddy = dq3;
+        // My = tcy * tcy * (dq3 - gwy * dq5);
+        // Mdy = q3;
+        // Mddy = dq3;
 
-        // selection of poles
-        g1y = -1 / tcy * f;
-        g2y = -1 / tcy * f;
-        g3y = -1 / tcy * f;
-        g4y = -10 * f;
+        // // selection of poles
+        // g1y = -1 / tcy * f;
+        // g2y = -1 / tcy * f;
+        // g3y = -1 / tcy * f;
+        // g4y = -10 * f;
 
-        a3y = -g1y - g2y - g3y - g4y;
-        a2y = g1y * g2y + g1y * g3y + g1y * g4y + g2y * g3y + g2y * g4y + g3y * g4y;
-        a1y = -g1y * g2y * g3y - g1y * g2y * g4y - g1y * g3y * g4y - g2y * g3y * g4y;
-        a0y = g1y * g2y * g3y * g4y;
+        // a3y = -g1y - g2y - g3y - g4y;
+        // a2y = g1y * g2y + g1y * g3y + g1y * g4y + g2y * g3y + g2y * g4y + g3y * g4y;
+        // a1y = -g1y * g2y * g3y - g1y * g2y * g4y - g1y * g3y * g4y - g2y * g3y * g4y;
+        // a0y = g1y * g2y * g3y * g4y;
 
-        kddy = -a3y;
-        kdy = -a2y + a0y * Yy2 / Yy1;
-        kmy = -a1y;
-        kqy = 0; //-a0y / Yy1;
+        // kddy = -a3y;
+        // kdy = -a2y + a0y * Yy2 / Yy1;
+        // kmy = -a1y;
+        // kqy = 0; //-a0y / Yy1;
 
-        // location of zeros
-        mu1y = g2y;
-        mu2y = g3y;
+        // // location of zeros
+        // mu1y = g2y;
+        // mu2y = g3y;
 
-        alphay1 = -(mu1y + mu2y) / (mu1y * mu2y);
-        alphay2 = 1 / (mu1y * mu2y);
+        // alphay1 = -(mu1y + mu2y) / (mu1y * mu2y);
+        // alphay2 = 1 / (mu1y * mu2y);
 
-        // qc are commanded values of q5
-        qcy = 0;
-        dqcy = 0;
-        ddqcy = 0;
+        // // qc are commanded values of q5
+        // qcy = 0;
+        // dqcy = 0;
+        // ddqcy = 0;
 
-        uy = qcy + alphay1 * dqcy + alphay2 * ddqcy;
+        // uy = qcy + alphay1 * dqcy + alphay2 * ddqcy;
 
-        Mdddy = (kddy * Mddy + kdy * Mdy + kmy * My + kqy * (q5 - uy));
+        // Mdddy = (kddy * Mddy + kdy * Mdy + kmy * My + kqy * (q5 - uy));
 
-        Tauright = H53 * Mdddy + H55 * (m * l * gr * sin(q3) - H33 * Mdddy) / H35;
+        // Tauright = H53 * Mdddy + H55 * (m * l * gr * sin(q3) - H33 * Mdddy) / H35;
+
+
+        // PD controller
+        
+        float kp = 1;
+        float kd = .1;
+        float offleft = 0;
+        float doffleft = 0;
+        Tauleft = -kp*(offleft - q2) + -kd * (doffleft - dq2);
+
+        float offright = 0;
+        float doffright = 0;
+        Tauright = -kp*(offright - q3) + -kd * (doffright - dq3);
 
         /*Controller timer*/
         gettimeofday(&contrt, NULL);
@@ -716,8 +731,8 @@ int main()
         }
 
         /*Get EMF from speed calculation*/
-        lemf = kt * dq4 * 60/PI; // lwheel velocity times back emf constant, kt to produce the back emf
-        remf = kt * dq5 * 60/PI; 
+        lemf = kt * dq4 *60/PI ; // lwheel velocity times back emf constant, kt to produce the back emf
+        remf = kt * dq5 *60/PI ; //changes dq from rad/s to RPM then to volt as kt is volt/PRM
 
         /*current to voltage*/
         R = 4.7; // omhs
