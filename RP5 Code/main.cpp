@@ -5,6 +5,7 @@
 #include <cmath>
 #include <sys/time.h>
 #include <time.h>
+#include <timer.h>
 #include "lib/brushless_drive_client.hpp"
 #include "lib/client_communication.hpp"
 #include "lib/coil_temperature_estimator_client.hpp"
@@ -32,6 +33,7 @@
 #include "unistd.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <cstdio.h>
 #include <chrono>
 #include "lib/MPU6050_6Axis_MotionApps20.cpp"
 #include "lib/MPU6050_6Axis_MotionApps20.h"
@@ -44,96 +46,35 @@
 #include "lib/wiringPiI2C.h"
 
 #define PI 3.14159265359
-// //WiringPi talkiking to IMU, Change to I2cDev for MPU
-// #define Device_Address 0x68 /*Device Address/Identifier for MPU6050*/
-// #define PWR_MGMT_1 0x6B
-// #define SMPLRT_DIV 0x19
-// #define CONFIG 0x1A
-// #define GYRO_CONFIG 0x1B
-// #define INT_ENABLE 0x38
-// #define ACCEL_XOUT_H 0x3B
-// #define ACCEL_YOUT_H 0x3D
-// #define ACCEL_ZOUT_H 0x3F
-// #define GYRO_XOUT_H 0x43
-// #define GYRO_YOUT_H 0x45
-// #define GYRO_ZOUT_H 0x47
+using std::cout;
+using std::endl;
 
-// #include "MPU6050.h" // not necessary if using MotionApps include file
+// Choose which of the output reports to enable:
+#define OUTPUT_GAME_ROTATION_VECTOR false // Orientation vector from sensor-fused accel and gyro
+#define OUTPUT_GYROSCOPE_CALIBRATED false // Gyro angular velocities
+#define OUTPUT_GYRO_INTEGRATED_RV true // Orientation vector and gyro angular velocities, faster but less accurate
 
-// uncomment "OUTPUT_READABLE_QUATERNION" if you want to see the actual
-// quaternion components in a [w, x, y, z] format (not best for parsing
-// on a remote host such as Processing or something though)
-// #define OUTPUT_READABLE_QUATERNION
 
-// uncomment "OUTPUT_READABLE_EULER" if you want to see Euler angles
-// (in degrees) calculated from the quaternions coming from the FIFO.
-// Note that Euler angles suffer from gimbal lock (for more info, see
-// http://en.wikipedia.org/wiki/Gimbal_lock)
-// #define OUTPUT_READABLE_EULER
-
-// uncomment "OUTPUT_READABLE_YAWPITCHROLL" if you want to see the yaw/
-// pitch/roll angles (in degrees) calculated from the quaternions coming
-// from the FIFO. Note this also requires gravity vector calculations.
-// Also note that yaw/pitch/roll angles suffer from gimbal lock (for
-// more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-#define OUTPUT_READABLE_YAWPITCHROLL
-
-// uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
-// components with gravity removed. This acceleration reference frame is
-// not compensated for orientation, so +X is always +X according to the
-// sensor, just without the effects of gravity. If you want acceleration
-// compensated for orientation, us OUTPUT_READABLE_WORLDACCEL instead.
-// #define OUTPUT_READABLE_REALACCEL
-
-// uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
-// components with gravity removed and adjusted for the world frame of
-// reference (yaw is relative to initial orientation, since no magnetometer
-// is present in this case). Could be quite handy in some cases.
-// #define OUTPUT_READABLE_WORLDACCEL
-
-// uncomment "OUTPUT_TEAPOT" if you want output that matches the
-// format used for the InvenSense teapot demo
-// #define OUTPUT_TEAPOT
 
 #pragma region // start code and initalize all variables and classes for communication
-bool blinkState = false;
 
-MPU6050 mpu;
+BNO085_IMU bno085;
+sh2_SensorValue_t sensorValue;
 I2Cdev i2c;
 
-// MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;        // [w, x, y, z]         quaternion container
-VectorInt16 aa;      // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;  // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measurements
-VectorFloat gravity; // [x, y, z]            gravity vector
-float euler[3];      // [psi, theta, phi]    Euler angle container
-float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-VectorInt16 gyro;
-// packet structure for InvenSense teapot demo
-uint8_t teapotPacket[14] = {'$', 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, '\r', '\n'};
-
-// ================================================================
-// ===               INTERRUPT DETECTION ROUTINE                ===
-// ================================================================
-
-volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
-void dmpDataReady()
-{
-    mpuInterrupt = true;
-}
+microTimer gameRotationVectorRefreshTimer;
+microTimer gyroRefreshTimer;
+microTimer gyroRotationVectorRefreshTimer;
 
 using namespace LibSerial;
 using namespace std;
 int fd;
+
+struct euler_t {
+  float yaw;
+  float pitch;
+  float roll;
+} ypr;
 
 /*Balbot Parameters*/
 float Ixb = 0.00012628;
@@ -172,6 +113,13 @@ float dq2a[100000];
 float dq3a[100000];
 float dq4a[100000];
 float dq5a[100000];
+float qw =  0;
+float qx =  0;
+float qy = 0;
+float qz =  0;
+float gyrox = 0;
+float gyroy = 0;
+float gyroz = 0;
 
 /*code vars*/
 float currlimit = 0;
@@ -333,48 +281,17 @@ int main()
     cout << "\n" << filename;
     myfile.open(filename);
 
-    // initialize device
+    // initialize BNO085
     printf("Initializing I2C devices...\n");
-    i2c.initialize("/dev/i2c-1");
-    mpu.initialize();
+if (!bno085.begin_I2C()) {
+    cout << "Failed to find BNO085 chip" << endl;
+    while (true);
+}
+if (!bno085.enableReport(SH2_GYRO_INTEGRATED_RV, 1000)) {
+    cout <<  "Could not enable Gyro-Integrated Rotation Vector report" << endl;
+}
 
-    // verify connection
-    printf("Testing device connections...\n");
-    // printf("%f", mpu.testConnection());
-    mpu.testConnection();
-    // load and configure the DMP
-    printf("Initializing DMP...");
-    devStatus = mpu.dmpInitialize();
 
-    // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(220);
-    mpu.setYGyroOffset(76);
-    mpu.setZGyroOffset(-85);
-    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-
-    // make sure it worked (returns 0 if so)
-    if (devStatus == 0)
-    {
-        // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateAccel(6);
-        mpu.CalibrateGyro(6);
-        mpu.PrintActiveOffsets();
-        // turn on the DMP, now that it's ready
-        printf("Enabling DMP...");
-        mpu.setDMPEnabled(true);
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    }
-    else
-    {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        printf("DMP Initialization failed %u", devStatus);
-    }
     /*set motors to zero voltage*/
     leftwheel.ctrl_volts_.set(com, zero);
     rightwheel.ctrl_volts_.set(com, zero);
@@ -392,95 +309,19 @@ int main()
         starttime = startt.tv_usec;
 
 #pragma region // IMU and Motor Communications and receiving data
+if (bno085.getSensorEvent(&sensorValue)) {
+    if(sensorValue.sensorId == SH2_GYRO_INTEGRATED_RV){
+        qw =  sensorValue.un.gyroIntegratedRV.real;
+        qx =  sensorValue.un.gyroIntegratedRV.i;
+        qy =  sensorValue.un.gyroIntegratedRV.j;
+        qz =  sensorValue.un.gyroIntegratedRV.k;
+        gyrox = sensorValue.un.gyroIntegratedRV.angVelX;
+        gyroy = sensorValue.un.gyroIntegratedRV.angVelY;
+        gyroz = sensorValue.un.gyroIntegratedRV.angVelZ;
 
-        if (!dmpReady)
-        {
-            printf("DMP not ready");
-        }
-        else if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) // read a packet from FIFO
-        {                                                 // Get the Latest packet
-#ifdef OUTPUT_READABLE_QUATERNION
-          // display quaternion values in easy matrix form: w x y z
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            printf("quat\t");
-            printf("%.3f", q.w);
-            printf("\t");
-            printf("%.3f", q.x);
-            printf("\t");
-            printf("%.3f", q.y);
-            printf("\t");
-            printf("%.3f", q.z);
-#endif
-
-#ifdef OUTPUT_READABLE_EULER
-            // display Euler angles in degrees
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetEuler(euler, &q);
-            printf("euler\t");
-            printf("%.3f", euler[0] * 180 / M_PI);
-            printf("\t");
-            printf("%.3f", euler[1] * 180 / M_PI);
-            printf("\t");
-            printf("%.3f", euler[2] * 180 / M_PI);
-#endif
-
-#ifdef OUTPUT_READABLE_YAWPITCHROLL
-            // display Euler angles in degrees
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            mpu.dmpGetGyro(&gyro, fifoBuffer);
-            // printf("ypr\t");
-            // printf("%.3f", ypr[0] * 180 / M_PI);
-            // printf("\t");
-            // printf("%.3f", ypr[1] * 180 / M_PI);
-            // printf("\t");
-            // printf("%.3f", ypr[2] * 180 / M_PI);
-#endif
-
-#ifdef OUTPUT_READABLE_REALACCEL
-            // display real acceleration, adjusted to remove gravity
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            printf("areal\t");
-            printf("%.3f", aaReal.x);
-            printf("\t");
-            printf("%.3f", aaReal.y);
-            printf("\t");
-            printf("%.3f", aaReal.z);
-#endif
-
-#ifdef OUTPUT_READABLE_WORLDACCEL
-            // display initial world-frame acceleration, adjusted to remove gravity
-            // and rotated based on known orientation from quaternion
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-            printf("aworld\t");
-            printf("%.3f", aaWorld.x);
-            printf("\t");
-            printf("%.3f", aaWorld.y);
-            printf("\t");
-            printf("%.3f", aaWorld.z);
-#endif
-
-#ifdef OUTPUT_TEAPOT
-            // display quaternion values in InvenSense Teapot demo format:
-            teapotPacket[2] = fifoBuffer[0];
-            teapotPacket[3] = fifoBuffer[1];
-            teapotPacket[4] = fifoBuffer[4];
-            teapotPacket[5] = fifoBuffer[5];
-            teapotPacket[6] = fifoBuffer[8];
-            teapotPacket[7] = fifoBuffer[9];
-            teapotPacket[8] = fifoBuffer[12];
-            teapotPacket[9] = fifoBuffer[13];
-            printf("%.14f", teapotPacket);
-            teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
-#endif
+        printf("FastVec: %.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\n", real, i, j, k, angVelX, angVelY, angVelZ);
+    }
+}
         }
         /*IMU timer*/
         gettimeofday(&IMUt, NULL);
@@ -488,19 +329,19 @@ int main()
 
         /*states (q1 and dq1 not used)*/
         // from quaternion
-        q1 = atan((2 * (q.w * q.z - q.x * q.y)) / (1 - 2 * (q.z * q.z + q.x * q.x))); // radians
-        q2 = asin((2 * (q.w * q.x + q.z * q.y)));
-        q3 = atan((2 * (q.w * q.y - q.z * q.x)) / (1 - 2 * (q.x * q.x + q.y * q.y)));
+        q1 = atan((2 * (qw * qz - qx * qy)) / (1 - 2 * (qz * qz + qx * qx))); // radians
+        q2 = asin((2 * (qw * qx + qz * qy)));
+        q3 = atan((2 * (qw * qy - qz * qx)) / (1 - 2 * (qx * qx + qy * qy)));
         q1a[x] = q1;
         q2a[x] = q2;
         q3a[x] = q3;
 
         /* q4 and q5 defined below after motor response*/
-        dq1 = gyro.z / 16.4 / 180 * PI; // radians
+        dq1 = gyroz / 16.4 / 180 * PI; // radians
         dq1a[x] = dq1;
-        dq2 = gyro.y / 16.4 / 180 * PI; // radians
+        dq2 = gyroy / 16.4 / 180 * PI; // radians
         dq2a[x] = dq2;
-        dq3 = gyro.x / 16.4 / 180 * PI; // radians
+        dq3 = gyrox / 16.4 / 180 * PI; // radians
         dq3a[x] = dq3;
 
         /**********************************************************************
@@ -731,8 +572,8 @@ int main()
         }
 
         /*Get EMF from speed calculation*/
-        lemf = kt * dq4 *60/PI ; // lwheel velocity times back emf constant, kt to produce the back emf
-        remf = kt * dq5 *60/PI ; //changes dq from rad/s to RPM then to volt as kt is volt/PRM
+        lemf = kt * dq4; // lwheel velocity times back emf constant, kt to produce the back emf
+        remf = kt * dq5; //changes dq from rad/s to RPM then to volt as kt is volt/PRM
 
         /*current to voltage*/
         R = 4.7; // omhs
