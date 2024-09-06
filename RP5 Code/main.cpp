@@ -1,11 +1,12 @@
 // Main Code to run BALBOT as an inverted pendulum with the wheels at a 90 deg angle
-// #include <list>
+
+#pragma region // start code and initalize all variables and classes for communication
+
 #include <iostream>
 #include <fstream>
 #include <cmath>
 #include <sys/time.h>
 #include <time.h>
-#include <timer.h>
 #include "lib/brushless_drive_client.hpp"
 #include "lib/client_communication.hpp"
 #include "lib/coil_temperature_estimator_client.hpp"
@@ -31,50 +32,27 @@
 #include "lib/multi_turn_angle_control_client.hpp"
 #include <string>
 #include "unistd.h"
+#include <cstdio>
 #include <stdlib.h>
 #include <stdio.h>
-#include <cstdio.h>
 #include <chrono>
-#include "lib/MPU6050_6Axis_MotionApps20.cpp"
-#include "lib/MPU6050_6Axis_MotionApps20.h"
-#include "lib/MPU6050.cpp"
-#include "lib/MPU6050.h"
-#include "lib/I2Cdev.h"
-#include "lib/I2Cdev.cpp"
-#include "lib/helper_3dmath.h"
 #include "lib/wiringPi.h"
 #include "lib/wiringPiI2C.h"
-
+#include "lib/bno085_driver.h"
+#include "lib/sh2.h"
+#include "lib/sh2_err.h"
+#include "lib/sh2_hal.h"
+#include "lib/sh2_SensorValue.h"
+#include "lib/sh2_util.h"
+#include "lib/shtp.h"
 #define PI 3.14159265359
-using std::cout;
-using std::endl;
-
-// Choose which of the output reports to enable:
-#define OUTPUT_GAME_ROTATION_VECTOR false // Orientation vector from sensor-fused accel and gyro
-#define OUTPUT_GYROSCOPE_CALIBRATED false // Gyro angular velocities
-#define OUTPUT_GYRO_INTEGRATED_RV true // Orientation vector and gyro angular velocities, faster but less accurate
-
-
-
-#pragma region // start code and initalize all variables and classes for communication
 
 BNO085_IMU bno085;
 sh2_SensorValue_t sensorValue;
-I2Cdev i2c;
-
-microTimer gameRotationVectorRefreshTimer;
-microTimer gyroRefreshTimer;
-microTimer gyroRotationVectorRefreshTimer;
 
 using namespace LibSerial;
 using namespace std;
 int fd;
-
-struct euler_t {
-  float yaw;
-  float pitch;
-  float roll;
-} ypr;
 
 /*Balbot Parameters*/
 float Ixb = 0.00012628;
@@ -113,10 +91,10 @@ float dq2a[100000];
 float dq3a[100000];
 float dq4a[100000];
 float dq5a[100000];
-float qw =  0;
-float qx =  0;
+float qw = 0;
+float qx = 0;
 float qy = 0;
-float qz =  0;
+float qz = 0;
 float gyrox = 0;
 float gyroy = 0;
 float gyroz = 0;
@@ -147,7 +125,12 @@ string day;
 string month;
 string year;
 string filename;
-
+struct euler_t
+{
+    float yaw;
+    float pitch;
+    float roll;
+} ypr;
 
 /*Time vars*/
 struct timeval startt, contrt, IMUt, motorsendt, motort, voltsett, printt, recordt, closet;
@@ -241,14 +224,13 @@ float ddqcy = 0;
 float uy = 0;
 float Mdddy = 0;
 
+#pragma endregion
 
 /*code commands*/
-float motordrive = 1; // set to 1 to drive motors
-float termprint = 1;  // set to 1 to print states to terminal
-float recorddata = 1; // set to 1 to save data to a file
-float timeprint = 0;  // set to 1 to print time intervals of the code
-
-#pragma endregion
+float motordrive = 0; // set to 1 to drive motors
+float termprint = 0;  // set to 1 to print states to terminal
+float recorddata = 0; // set to 1 to save data to a file
+float timeprint = 1;  // set to 1 to print time intervals of the code
 
 int main()
 {
@@ -268,29 +250,36 @@ int main()
     // open a file
     //  Create and open a text file
     ofstream myfile;
-    cout << "enter trial number";
-    cin >> trial;
-    cout << "enter date: ";
-    cout <<  "day: ";
-    cin >> day;
-    cout << "month: ";
-    cin >> month;
-    cout << "year: ";
-    cin >> year;
-    filename = "/home/neilrw2/trial_" + trial + "--" + year + "-" + month + "-" + day + ".csv";
-    cout << "\n" << filename;
-    myfile.open(filename);
+    if (recorddata == 1)
+    {
+        
+        cout << "enter trial number";
+        cin >> trial;
+        cout << "enter date: ";
+        cout << "day: ";
+        cin >> day;
+        cout << "month: ";
+        cin >> month;
+        cout << "year: ";
+        cin >> year;
+        filename = "/home/neilrw2/trial_" + trial + "--" + year + "-" + month + "-" + day + ".csv";
+        cout << "\n"
+             << filename;
+        myfile.open(filename);
+    }
 
-    // initialize BNO085
+    // initialize device
     printf("Initializing I2C devices...\n");
-if (!bno085.begin_I2C()) {
-    cout << "Failed to find BNO085 chip" << endl;
-    while (true);
-}
-if (!bno085.enableReport(SH2_GYRO_INTEGRATED_RV, 1000)) {
-    cout <<  "Could not enable Gyro-Integrated Rotation Vector report" << endl;
-}
-
+    if (!bno085.begin_I2C())
+    {
+        cout << "Failed to find BNO085 chip" << endl;
+        while (true)
+            ;
+    }
+    if (!bno085.enableReport(SH2_GYRO_INTEGRATED_RV, 1000))
+    {
+        cout << "Could not enable Gyro-Integrated Rotation Vector report" << endl;
+    }
 
     /*set motors to zero voltage*/
     leftwheel.ctrl_volts_.set(com, zero);
@@ -303,26 +292,28 @@ if (!bno085.enableReport(SH2_GYRO_INTEGRATED_RV, 1000)) {
 
     while (buttonpress == 0)
     {
+#pragma region // IMU and Motor Communications and receiving data
         /*START LOOP HERE*/
         /*timer start here*/
         gettimeofday(&startt, NULL);
         starttime = startt.tv_usec;
 
-#pragma region // IMU and Motor Communications and receiving data
-if (bno085.getSensorEvent(&sensorValue)) {
-    if(sensorValue.sensorId == SH2_GYRO_INTEGRATED_RV){
-        qw =  sensorValue.un.gyroIntegratedRV.real;
-        qx =  sensorValue.un.gyroIntegratedRV.i;
-        qy =  sensorValue.un.gyroIntegratedRV.j;
-        qz =  sensorValue.un.gyroIntegratedRV.k;
-        gyrox = sensorValue.un.gyroIntegratedRV.angVelX;
-        gyroy = sensorValue.un.gyroIntegratedRV.angVelY;
-        gyroz = sensorValue.un.gyroIntegratedRV.angVelZ;
+        if (bno085.getSensorEvent(&sensorValue))
+        {
+            if (sensorValue.sensorId == SH2_GYRO_INTEGRATED_RV)
+            {
+                qw = sensorValue.un.gyroIntegratedRV.real;
+                qx = sensorValue.un.gyroIntegratedRV.i;
+                qy = sensorValue.un.gyroIntegratedRV.j;
+                qz = sensorValue.un.gyroIntegratedRV.k;
+                gyrox = sensorValue.un.gyroIntegratedRV.angVelX;
+                gyroy = sensorValue.un.gyroIntegratedRV.angVelY;
+                gyroz = sensorValue.un.gyroIntegratedRV.angVelZ;
 
-        printf("FastVec: %.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\n", real, i, j, k, angVelX, angVelY, angVelZ);
-    }
-}
+                // printf("FastVec: %.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f", qw, qx, qy, qz, gyrox, gyroy, gyroz);
+            }
         }
+
         /*IMU timer*/
         gettimeofday(&IMUt, NULL);
         IMUtime = IMUt.tv_usec;
@@ -336,12 +327,12 @@ if (bno085.getSensorEvent(&sensorValue)) {
         q2a[x] = q2;
         q3a[x] = q3;
 
-        /* q4 and q5 defined below after motor response*/
-        dq1 = gyroz / 16.4 / 180 * PI; // radians
+        /* q4 and q5 defined below after motor response*/ // NEED JACOBIAN GET FROM MATLAB
+        dq1 = gyroz; // radians/second
         dq1a[x] = dq1;
-        dq2 = gyroy / 16.4 / 180 * PI; // radians
+        dq2 = gyroy; // radians/second
         dq2a[x] = dq2;
-        dq3 = gyrox / 16.4 / 180 * PI; // radians
+        dq3 = gyrox; // radians/second
         dq3a[x] = dq3;
 
         /**********************************************************************
@@ -522,18 +513,28 @@ if (bno085.getSensorEvent(&sensorValue)) {
 
         // Tauright = H53 * Mdddy + H55 * (m * l * gr * sin(q3) - H33 * Mdddy) / H35;
 
-
         // PD controller
-        
+
         float kp = 1;
         float kd = .1;
-        float offleft = 0;
-        float doffleft = 0;
-        Tauleft = -kp*(offleft - q2) + -kd * (doffleft - dq2);
+        // float offleft = 0;
+        // float doffleft = 0;
+        // Tauleft = -kp*(offleft - q2) + -kd * (doffleft - dq2);
 
-        float offright = 0;
-        float doffright = 0;
-        Tauright = -kp*(offright - q3) + -kd * (doffright - dq3);
+        // float offright = 0;
+        // float doffright = 0;
+        // Tauright = -kp * (offright - q3) + -kd * (doffright - dq3);
+
+        // IMU based control
+        //  Tauleft =  .1*q2;
+        //  Tauright = .1*q3;
+
+        // Sinusoidal control
+
+        // Tauleft = .1*sin(starttime/1000000 * 6.28);
+        // Tauright = .1*cos(starttime/1000000 * 6.28);
+        Tauleft = 0.01;
+        Tauright = 0.01;
 
         /*Controller timer*/
         gettimeofday(&contrt, NULL);
@@ -573,7 +574,7 @@ if (bno085.getSensorEvent(&sensorValue)) {
 
         /*Get EMF from speed calculation*/
         lemf = kt * dq4; // lwheel velocity times back emf constant, kt to produce the back emf
-        remf = kt * dq5; //changes dq from rad/s to RPM then to volt as kt is volt/PRM
+        remf = kt * dq5; // dq is rad/s to volt as kt is V*s/rad
 
         /*current to voltage*/
         R = 4.7; // omhs
@@ -582,13 +583,13 @@ if (bno085.getSensorEvent(&sensorValue)) {
         rightvolt = remf + R * rightcurr;
         rightvolta[x] = rightvolt;
         /*Motor commands here*/
-        if (abs(q2) > .20 | abs(q3) > .20) // rads
+        if (abs(q2) > .30 | abs(q3) > .30) // rads
         {                                  // motor stop for falling over
             leftwheel.ctrl_brake_.set(com);
             rightwheel.ctrl_brake_.set(com);
         }
         else if (motordrive == 1)
-        { // Can the motors voltage command be sent from down here or before the TX call?
+        { // Can the motors voltage command be sent from down here or before the TX call? Yes
             leftwheel.ctrl_volts_.set(com, leftvolt);
             rightwheel.ctrl_volts_.set(com, rightvolt);
         }
@@ -607,7 +608,7 @@ if (bno085.getSensorEvent(&sensorValue)) {
 #pragma region // terminal print, time calculations, data storage and offload, time print
         if (termprint == 1)
         {
-            printf(" LMotor curr: %.3f \tRMotor curr: %.3f \tLMotor volt: %.3f \tRMotor volt: %.3f \tq1: %.3f \tq2: %.3f \tq3:%.3f \tq4: %.3f \tq5:%.3f \tdq1: %.3f \tdq2: %.3f \tdq3:%.3f \tdq4: %.3f \tdq5:%.3f\n", lcurr, rcurr, leftvolt, rightvolt, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5);
+            printf(" LMotor tau: %.3f \tRMotor tau: %.3f \tLMotor volt: %.3f \tRMotor volt: %.3f \tq1: %.3f \tq2: %.3f \tq3:%.3f \tq4: %.3f \tq5:%.3f \tdq1: %.3f \tdq2: %.3f \tdq3:%.3f \tdq4: %.3f \tdq5:%.3f\n", Tauleft, Tauright, leftvolt, rightvolt, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5);
             /*printtimer timer*/
             gettimeofday(&printt, NULL);
             printtime = printt.tv_usec;
@@ -622,7 +623,7 @@ if (bno085.getSensorEvent(&sensorValue)) {
         motorgetT = motorgettime - motorsendtime;
         controllerT = controllertime - motorgettime;
         voltagesetT = voltagesettime - controllertime;
-        
+
         oldstarttime = starttime;
 
         if (timeprint == 1)
@@ -631,7 +632,7 @@ if (bno085.getSensorEvent(&sensorValue)) {
         }
 
         /*exiter on the while loop*/
-        if (x == 9999) // this is on a loop timer, want to change on key press to do this size of txt file based on x for amount of rows
+        if (x == 99999) // this is on a loop timer, want to change on key press to do this size of txt file based on x for amount of rows
         {
 
             /*THIS IS END OF CODE here are the closing statements to safely exit code and shutdown motors/IMU */
