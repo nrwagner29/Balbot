@@ -1,12 +1,12 @@
-addpath "C:\Users\neilrw2\Box\Balbot\Balbot_Data_Storage\PiDatalogging"
+addpath C:\Users\neilrw2\Box\Balbot\Balbot_Data_Storage\PiDatalogging
 
 clear
 clc
 close all
 
-A = readmatrix("trial_3--24-9-5.csv");
+A = readmatrix("trial_8--24-9-19.csv");
 
-q = [A(:,2) A(:,3) A(:,4) A(:,5) A(:,6) A(:,7) A(:,8) A(:,9) A(:,10) A(:,11)];
+q = [A(:,2) A(:,3) A(:,4) A(:,5) A(:,6) A(:,7) A(:,8) A(:,9) A(:,10) A(:,11) A(:,12) A(:,13) A(:,14) A(:,15) A(:,16) A(:,17)];
 
 second = 0;
 for i=1:length(A(:,1))-1
@@ -16,8 +16,8 @@ for i=1:length(A(:,1))-1
     % Tauright(i) = .1*cos(A(i,1)/1000000 * 6.28);
     % Tauleft(i) =  .1*A(i,3);
     % Tauright(i) = .1*A(i,4);
-    kp = 1;
-    kd = .1;
+    kp = 0;
+    kd = 1;
     offleft = 0;
     doffleft = 0;
     Tauleft(i) = -kp*(offleft - A(i,3)) + -kd * (doffleft - A(i,10));
@@ -100,7 +100,7 @@ legend('q4','q5')
 figure
 hold on
 set(gca,'ColorOrderIndex',4)
-plot(t,q(:,9),t,q(:,10),t(1:end-1),eddq4(:)',t(1:end-1),eddq5(:)','-','LineWidth',1);
+plot(t,q(:,15),t,q(:,16),t(1:end-1),Tauleft(:)',t(1:end-1),Tauright(:)','-','LineWidth',1);
 hold off
 ylabel('rad/s')
 xlabel('Time [sec]')

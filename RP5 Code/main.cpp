@@ -81,16 +81,16 @@ float dq2 = 0;
 float dq3 = 0;
 float dq4 = 0;
 float dq5 = 0;
-float q1a[100000]; // approx 90sec of storage with 115Hz // 18000 for 90 sec of storage at 200Hz
-float q2a[100000];
-float q3a[100000];
-float q4a[100000];
-float q5a[100000];
-float dq1a[100000];
-float dq2a[100000];
-float dq3a[100000];
-float dq4a[100000];
-float dq5a[100000];
+float q1a[1000000]; // approx 90sec of storage with 115Hz // 18000 for 90 sec of storage at 200Hz
+float q2a[1000000];
+float q3a[1000000];
+float q4a[1000000];
+float q5a[1000000];
+float dq1a[1000000];
+float dq2a[1000000];
+float dq3a[1000000];
+float dq4a[1000000];
+float dq5a[1000000];
 float qw = 0;
 float qx = 0;
 float qy = 0;
@@ -111,8 +111,12 @@ float remf = 0;
 float R = 0;
 float leftvolt = 0;
 float rightvolt = 0;
-float leftvolta[100000];
-float rightvolta[100000];
+float leftvolta[1000000];
+float rightvolta[1000000];
+float leftcurra[1000000];
+float rightcurra[1000000];
+float Taulefta[1000000];
+float Taurighta[1000000];
 float zero = 0;
 float Tauleft = 0;
 float Tauright = 0;
@@ -152,7 +156,7 @@ float datarecordT = 0;
 float controllerT = 0;
 float closeT = 0;
 float totalT = 0;
-float startTa[100000];
+float startTa[1000000];
 float motorsendtime = 0;
 float motorsendT = 0;
 float totalmotorT = 0;
@@ -227,10 +231,10 @@ float Mdddy = 0;
 #pragma endregion
 
 /*code commands*/
-float motordrive = 0; // set to 1 to drive motors
-float termprint = 0;  // set to 1 to print states to terminal
-float recorddata = 0; // set to 1 to save data to a file
-float timeprint = 1;  // set to 1 to print time intervals of the code
+float motordrive = 1; // set to 1 to drive motors
+float termprint = 1;  // set to 1 to print states to terminal
+float recorddata = 1; // set to 1 to save data to a file
+float timeprint = 0;  // set to 1 to print time intervals of the code
 
 int main()
 {
@@ -252,7 +256,7 @@ int main()
     ofstream myfile;
     if (recorddata == 1)
     {
-        
+
         cout << "enter trial number";
         cin >> trial;
         cout << "enter date: ";
@@ -327,12 +331,12 @@ int main()
         q2a[x] = q2;
         q3a[x] = q3;
 
-        /* q4 and q5 defined below after motor response*/ // NEED JACOBIAN GET FROM MATLAB
-        dq1 = gyroz; // radians/second
+        /*multiply through augmented jacobian to produce dq values from angular velocities*/
+        dq1 = (sin(q1) * sin(q2)) / (cos(q2) * cos(q1) * cos(q2) * cos(q1) + cos(q2) * sin(q1) * cos(q2) * sin(q1)) * gyrox + -(cos(q1) * sin(q2)) / (cos(q2) * cos(q1) * cos(q2) * cos(q1) + cos(q2) * sin(q1) * cos(q2) * sin(q1)) * gyroy + gyroz; // radians/second
         dq1a[x] = dq1;
-        dq2 = gyroy; // radians/second
+        dq2 = cos(q1) / (cos(q1) * cos(q1) + sin(q1) * sin(q1)) * gyrox + sin(q1) / (cos(q1) * cos(q1) + sin(q1) * sin(q1)) * gyroy; // radians/second
         dq2a[x] = dq2;
-        dq3 = gyrox; // radians/second
+        dq3 = -sin(q1) / (cos(q2) * cos(q1) * cos(q2) * cos(q1) + cos(q2) * sin(q1) * cos(q2) * sin(q1)) * gyrox + cos(q1) / (cos(q2) * cos(q1) * cos(q2) * cos(q1) + cos(q2) * sin(q1) * cos(q2) * sin(q1)) * gyroy; // radians/second
         dq3a[x] = dq3;
 
         /**********************************************************************
@@ -402,31 +406,6 @@ int main()
         ////////////////////////
         /*Controller code Here*/
         ////////////////////////
-        // /*From MATLAB ccode (*recalculate*)*/
-        // float t2 = q3;
-        // float t4 = wmass * 2.0;
-        // float t8 = q3 * 1.189149697475401E+2;
-        // float t9 = q2 * 1.199641144518069E+2;
-        // float t10 = q5 * 9.010851487501317E-1;
-        // float t11 = q4 * 9.177937453718946E-1;
-        // float t12 = wmass * 1.78623225E-2;
-        // float t13 = dq3 * 2.222248647904258E+1;
-        // float t14 = dq2 * 2.230524933343801E+1;
-        // float t15 = dq4 * 8.437080976593504E-1;
-        // float t16 = dq5 * 8.323297792399134E-1;
-        // float t3 = cos(t2);
-        // float t5 = t2 * 2.0;
-        // float t7 = bmass + t4;
-        // float t17 = t9 + t11 + t14 + t15;
-        // float t18 = t8 + t10 + t13 + t16;
-        // float t6 = cos(t5);
-        // /*torque output of controller here*/
-        // Tauleft = (t17 * (Ixb / 2.0 + Ixwr / 2.0 + Iywl / 2.0 + Izb / 2.0 + Izwl / 2.0 + Izwr / 2.0 + bmass * 8.93116125E-3 + t12 + (Ixb * t6) / 2.0 + (Ixwr * t6) / 2.0 + (Iywl * t6) / 2.0 - (Izb * t6) / 2.0 - (Izwl * t6) / 2.0 - (Izwr * t6) / 2.0 + bmass * t6 * 8.93116125E-3 + t6 * t12) + gr * l * t7 * sin(q2)) / t3 - t3 * t17 * (Iywl + t12);
-        // Tauright = t18 * (Ixwl + Iyb + Iywr + bmass * 1.78623225E-2 + wmass * 3.5724645E-2) - t18 * (Iywr + t12) + gr * l * t7 * sin(q3);
-        // /*End MATLAB ccode*/
-
-        // mass matrix calcs
-
         // featherstone control law x (q2)
         // Yx1 = -1 / (tcx * tcx * gwx);
         // Yx2 = 1 / (gwx);
@@ -435,7 +414,7 @@ int main()
         // Mdx = q2;
         // Mddx = dq2;
 
-        // f = .25; // pole factor (larger to increase mag of poles)
+        // f = .5; // pole factor (larger to increase mag of poles)
 
         // // selection of poles
         // g1x = -1 / tcx * f;
@@ -515,27 +494,28 @@ int main()
 
         // PD controller
 
-        float kp = 1;
-        float kd = .1;
+        float kp = 0;
+        float kd = 1;
         // float offleft = 0;
         // float doffleft = 0;
         // Tauleft = -kp*(offleft - q2) + -kd * (doffleft - dq2);
 
-        // float offright = 0;
-        // float doffright = 0;
-        // Tauright = -kp * (offright - q3) + -kd * (doffright - dq3);
+        float offright = 0;
+        float doffright = 0;
+        Tauright = -kp * (offright - q3) + -kd * (doffright - dq3);
 
         // IMU based control
         //  Tauleft =  .1*q2;
-        //  Tauright = .1*q3;
+        //  Tauright = -.1*q3;
 
         // Sinusoidal control
 
         // Tauleft = .1*sin(starttime/1000000 * 6.28);
         // Tauright = .1*cos(starttime/1000000 * 6.28);
-        Tauleft = 0.01;
-        Tauright = 0.01;
-
+        Tauleft = 0;
+        // Tauright = 0.01;
+        Taulefta[x] = Tauleft;
+        Taurighta[x] = Tauright;
         /*Controller timer*/
         gettimeofday(&contrt, NULL);
         controllertime = contrt.tv_usec;
@@ -571,7 +551,8 @@ int main()
         {
             rightcurr = -currlimit;
         }
-
+        leftcurra[x] = leftcurr;
+        rightcurra[x] = rightcurr;
         /*Get EMF from speed calculation*/
         lemf = kt * dq4; // lwheel velocity times back emf constant, kt to produce the back emf
         remf = kt * dq5; // dq is rad/s to volt as kt is V*s/rad
@@ -583,7 +564,7 @@ int main()
         rightvolt = remf + R * rightcurr;
         rightvolta[x] = rightvolt;
         /*Motor commands here*/
-        if (abs(q2) > .30 | abs(q3) > .30) // rads
+        if (abs(q2) > .35 | abs(q3) > .45) // rads
         {                                  // motor stop for falling over
             leftwheel.ctrl_brake_.set(com);
             rightwheel.ctrl_brake_.set(com);
@@ -632,7 +613,7 @@ int main()
         }
 
         /*exiter on the while loop*/
-        if (x == 99999) // this is on a loop timer, want to change on key press to do this size of txt file based on x for amount of rows
+        if (x == 9999) // this is on a loop timer, want to change on key press to do this size of txt file based on x for amount of rows
         {
 
             /*THIS IS END OF CODE here are the closing statements to safely exit code and shutdown motors/IMU */
@@ -647,19 +628,19 @@ int main()
                 {
                     // save states to file here
                     // Write to the file
-                    myfile << "loop time, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5, LeftMotorVoltage, RightMotorVoltage\n";
+                    myfile << "loop time, q1, q2, q3, q4, q5, dq1, dq2, dq3, dq4, dq5, LeftMotorVoltage, RightMotorVoltage, LeftMotorCurrent, RightMotorCurrent, LeftMotorTorque, RightMotorTorque\n";
                     printf("File Printed\n");
                     while (i < x)
                     {
                         i++;
-                        leftwheel.ctrl_brake_.set(com);
-                        rightwheel.ctrl_brake_.set(com);
-                        myfile << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i] << "\n";
-                        // cout << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i]<< "\n";
+
+                        myfile << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i] << ", " << leftcurra[i] << ", " << rightcurra[i] << ", " << Taulefta[i] << ", " << Taurighta[i] << "\n";
+                        // cout << startTa[i] << ", " << q1a[i] << ", " << q2a[i] << ", " << q3a[i] << ", " << q4a[i] << ", " << q5a[i] << ", " << dq1a[i] << ", " << dq2a[i] << ", " << dq3a[i] << ", " << dq4a[i] << ", " << dq5a[i] << ", " << leftvolta[i] << ", " << rightvolta[i] << ", " << leftcurra[i] << ", " << rightcurra[i] << ", " << Taulefta[i] << ", " << Taurighta[i] << "\n";
                     }
                 }
             }
-
+            leftwheel.ctrl_brake_.set(com);
+            rightwheel.ctrl_brake_.set(com);
             myfile.close(); // Close the file
             buttonpress = 1;
         }
