@@ -4,7 +4,7 @@ clear
 clc
 close all
 
-A = readmatrix("trial_8--24-9-19.csv");
+A = readmatrix("trial_3--24-9-20.csv");
 
 q = [A(:,2) A(:,3) A(:,4) A(:,5) A(:,6) A(:,7) A(:,8) A(:,9) A(:,10) A(:,11) A(:,12) A(:,13) A(:,14) A(:,15) A(:,16) A(:,17)];
 
@@ -66,6 +66,7 @@ eddq5 = eddq5';
 
 
 hold on
+subplot(2,3,1)
 set(gca,'ColorOrderIndex',4)
 plot(t,q(:,1),t,q(:,2),t,q(:,3),'-','LineWidth',1);
 hold off
@@ -75,7 +76,7 @@ grid on
 title('states (q)')
 legend('q1','q2','q3')
 
-figure
+subplot(2,3,4)
 hold on
 set(gca,'ColorOrderIndex',4)
 plot(t,q(:,6),t,q(:,7),t,q(:,8),'-','LineWidth',1);
@@ -86,7 +87,7 @@ grid on
 title('states (dq)')
 legend('dq1','dq2','dq3')
 
-figure
+subplot(2,3,2)
 hold on
 set(gca,'ColorOrderIndex',4)
 plot(t,q(:,4),t,q(:,5),'-','LineWidth',1);
@@ -97,13 +98,24 @@ grid on
 title('wheel states (q)')
 legend('q4','q5')
 
-figure
+subplot(2,3,5)
 hold on
 set(gca,'ColorOrderIndex',4)
-plot(t,q(:,15),t,q(:,16),t(1:end-1),Tauleft(:)',t(1:end-1),Tauright(:)','-','LineWidth',1);
+plot(t,q(:,9),t,q(:,10),'-','LineWidth',1);
 hold off
 ylabel('rad/s')
 xlabel('Time [sec]')
 grid on
-title('actual and expected wheel states (dq)')
-legend('dq4','dq5','exp ddq4','exp ddq5')
+title('wheel velocity states (dq)')
+legend('dq4','dq5')
+
+subplot(2,3,3)
+hold on
+set(gca,'ColorOrderIndex',4)
+plot(t,q(:,15),t,q(:,16),t(1:end-1),Tauleft(:)',t(1:end-1),Tauright(:)','-','LineWidth',1);
+hold off
+ylabel('Nm')
+xlabel('Time [sec]')
+grid on
+title('actual and expected torques (Nm)')
+legend('left torque desired','right torque desired','exp left torque','exp right torque')
